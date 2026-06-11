@@ -1,0 +1,166 @@
+﻿.tx-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+    .tx-table thead tr {
+        background: var(--bg);
+        border-bottom: 2px solid var(--border);
+    }
+
+    .tx-table thead th {
+        padding: 11px 14px;
+        color: var(--text-muted);
+        font-weight: 500;
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+        text-align: left;
+    }
+
+    .tx-table tbody tr:not(.tx-details-row) {
+        border-bottom: 1px solid var(--border);
+        transition: background 0.15s;
+    }
+
+        .tx-table tbody tr:not(.tx-details-row):hover {
+            background: var(--bg);
+        }
+
+    .tx-table tbody td {
+        padding: 11px 14px;
+        vertical-align: middle;
+    }
+
+.tx-amount {
+    font-weight: 700;
+    color: #E8611A;
+}
+
+.tx-muted {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+/* Status pill */
+.status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+    .status-pill.paid,
+    .status-pill.served,
+    .status-pill.completed {
+        background: #e6f4ea;
+        color: #1e7e34;
+    }
+
+    .status-pill.cancelled {
+        background: #fdecea;
+        color: #c0392b;
+    }
+
+/* Expand icon */
+.expand-icon {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    transition: color 0.15s;
+}
+
+/* Expandable details row */
+.tx-details-row td {
+    padding: 0 !important;
+    background: var(--bg);
+    border-bottom: 2px solid var(--border);
+}
+
+.tx-details-inner {
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.tx-items-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tx-item-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.85rem;
+}
+
+.tx-item-qty {
+    font-weight: 700;
+    color: var(--accent, #E8611A);
+    min-width: 28px;
+}
+
+.tx-item-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tx-item-name {
+    font-weight: 500;
+    color: var(--text);
+}
+
+.tx-item-meta {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+}
+
+.tx-item-price {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.tx-meta-row {
+    display: flex;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+}
+
+/* Date pickers + type select */
+.date-picker,
+.filter-select {
+    font-size: 0.82rem;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+}
+
+    .date-picker:focus,
+    .filter-select:focus {
+        outline: none;
+        border-color: var(--accent, #E8611A);
+    }
+
+/* Range label */
+.range-label {
+    margin-top: 8px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    padding-left: 4px;
+}

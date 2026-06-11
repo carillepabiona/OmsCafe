@@ -1,0 +1,1358 @@
+﻿/* ══════════════════════════════════════════════════════════
+   MODAL SYSTEM v2 — Verso Cafe POS
+   ══════════════════════════════════════════════════════════ */
+/* ── Tab panels ───────────────────────────────────────────── */
+.mm-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0;
+}
+
+.mm-tab {
+    background: none;
+    border: none;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-mute);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all .2s;
+}
+
+    .mm-tab:hover {
+        color: var(--brown);
+    }
+
+    .mm-tab.active {
+        color: var(--brown);
+        border-bottom-color: var(--brown);
+    }
+
+/* ── Section bar ──────────────────────────────────────────── */
+.section-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.search-wrap {
+    position: relative;
+}
+
+.search-ico {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-mute);
+}
+
+.search-input {
+    padding: 8px 12px 8px 34px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+    width: 220px;
+}
+
+.filter-select {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+}
+
+/* ── Items grid ───────────────────────────────────────────── */
+.items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill,minmax(240px,1fr));
+    gap: 16px;
+}
+
+.item-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow .2s;
+}
+
+    .item-card:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    }
+
+.item-thumb {
+    position: relative;
+    height: 140px;
+    background: var(--bg);
+}
+
+    .item-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+.item-thumb-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avail-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.avail-on {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.avail-off {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.item-body {
+    padding: 12px;
+    flex: 1;
+}
+
+.item-cat-label {
+    font-size: 11px;
+    color: var(--brown);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 4px;
+}
+
+.item-name {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0 0 4px;
+}
+
+.item-desc {
+    font-size: 12px;
+    color: var(--text-mute);
+    margin: 0 0 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.item-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.meta-chip {
+    font-size: 11px;
+    color: var(--text-mute);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.meta-price {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--brown);
+}
+
+.item-actions {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+}
+
+.icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all .15s;
+}
+
+.edit-btn:hover {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.toggle-on:hover {
+    background: #d1fae5;
+    border-color: #059669;
+    color: #059669;
+}
+
+.toggle-off:hover {
+    background: #fee2e2;
+    border-color: #dc2626;
+    color: #dc2626;
+}
+
+.delete-btn:hover {
+    background: #fee2e2;
+    border-color: #dc2626;
+    color: #dc2626;
+}
+
+/* ── List rows ────────────────────────────────────────────── */
+.list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.list-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.cat-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.list-info {
+    flex: 1;
+}
+
+    .list-info strong {
+        font-size: 14px;
+        display: block;
+    }
+
+.list-sub {
+    font-size: 12px;
+    color: var(--text-mute);
+}
+
+.count-badge {
+    padding: 3px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+}
+
+.status-chip {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.chip-active {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.chip-inactive {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.row-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.txt-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--brown);
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+    .txt-btn:hover {
+        background: var(--bg);
+    }
+
+    .txt-btn.danger {
+        color: #dc2626;
+    }
+
+        .txt-btn.danger:hover {
+            background: #fee2e2;
+        }
+
+/* ── Customization cards ──────────────────────────────────── */
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill,minmax(260px,1fr));
+    gap: 16px;
+}
+
+.cust-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cust-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.cust-name {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.type-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.badge-radio {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.badge-check {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.cust-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.opt-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.opt-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dot-radio {
+    background: #6d28d9;
+}
+
+.dot-check {
+    background: #92400e;
+}
+
+.opt-price {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--brown);
+    font-weight: 600;
+}
+
+.cust-card-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* ── Addon list ───────────────────────────────────────────── */
+.status-dot-sm {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dot-on {
+    background: #10b981;
+}
+
+.dot-off {
+    background: #ef4444;
+}
+
+.addon-price-tag {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--brown);
+}
+
+/* ── Availability grid ────────────────────────────────────── */
+.avail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill,minmax(220px,1fr));
+    gap: 14px;
+}
+
+.avail-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.avail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.avail-name {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.avail-times {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.time-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-mute);
+}
+
+.time-input {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+}
+
+/* ── Toggle switch ────────────────────────────────────────── */
+.toggle-switch {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    gap: 6px;
+}
+
+    .toggle-switch input {
+        display: none;
+    }
+
+.toggle-track {
+    width: 36px;
+    height: 20px;
+    background: #d1d5db;
+    border-radius: 20px;
+    position: relative;
+    transition: background .2s;
+    flex-shrink: 0;
+}
+
+    .toggle-track::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #fff;
+        transition: transform .2s;
+    }
+
+.toggle-switch input:checked ~ .toggle-track {
+    background: var(--brown);
+}
+
+    .toggle-switch input:checked ~ .toggle-track::after {
+        transform: translateX(16px);
+    }
+
+/* ── Pricing table ────────────────────────────────────────── */
+.table-wrap {
+    overflow-x: auto;
+}
+
+.pricing-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+    .pricing-table th {
+        text-align: left;
+        padding: 10px 14px;
+        background: var(--bg);
+        border-bottom: 2px solid var(--border);
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-mute);
+        text-transform: uppercase;
+    }
+
+    .pricing-table td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .pricing-table tr:hover td {
+        background: var(--bg);
+    }
+
+.muted {
+    color: var(--text-mute);
+}
+
+.margin-chip {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.margin-high {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.margin-mid {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.margin-low {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.margin-preview {
+    margin-top: 12px;
+    font-size: 14px;
+    color: var(--text-mute);
+}
+
+/* =========================================================
+   MODAL BACKDROP
+   ========================================================= */
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(3px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    animation: fadeBackdrop .2s ease;
+}
+
+    .modal-backdrop::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .modal-backdrop::-webkit-scrollbar-thumb {
+        background: rgba(255,140,0,.35);
+        border-radius: 999px;
+    }
+
+    .modal-backdrop::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+@keyframes fadeBackdrop {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* =========================================================
+   MODAL CONTAINER
+   ========================================================= */
+.modal {
+    position: relative;
+    width: 100%;
+    max-width: 650px;
+    background: #fff;
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    overflow-y:auto;
+    height: 85vh; /* Fixed height */
+    max-height: 77vh;
+    box-shadow: 0 25px 80px rgba(0,0,0,.25), 0 8px 24px rgba(0,0,0,.12);
+}
+
+.modal-sm {
+    max-width: 450px;
+}
+
+@keyframes modalShow {
+    from {
+        opacity: 0;
+        transform: translateY(25px) scale(.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* =========================================================
+   MODAL HEADER
+   ========================================================= */
+
+.modal-hdr {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 24px;
+    background: #fffaf5;
+    border-bottom: 1px solid #f2e5d8;
+    flex-shrink: 0;
+}
+
+.modal-hdr-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: rgba(255,140,0,.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FF8C00;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+    .modal-hdr-icon.danger {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+.modal-hdr-text {
+    flex: 1;
+}
+
+.modal-hdr h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #222;
+}
+
+.modal-hdr-sub {
+    margin-top: 3px;
+    font-size: 13px;
+    color: #888;
+}
+
+/* =========================================================
+   CLOSE BUTTON
+   ========================================================= */
+
+.close-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid #e5e5e5;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 20px;
+    transition: .15s;
+    flex-shrink: 0;
+}
+
+    .close-btn:hover {
+        background: #fee2e2;
+        border-color: #fecaca;
+        color: #dc2626;
+    }
+
+/* =========================================================
+   MODAL BODY
+   ========================================================= */
+
+.modal-body {
+    flex: 1;
+    overflow-y: scroll; /* Always show scrollbar */
+    overflow-x: hidden;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+    .modal-body::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    .modal-body::-webkit-scrollbar-track {
+        background: #f5f5f5;
+        border-radius: 999px;
+    }
+
+    .modal-body::-webkit-scrollbar-thumb {
+        background: #FF8C00;
+        border-radius: 999px;
+    }
+
+        .modal-body::-webkit-scrollbar-thumb:hover {
+            background: #e07b00;
+        }
+
+/* =========================================================
+   MODAL FOOTER
+   ========================================================= */
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 18px 24px;
+    background: #fffaf5;
+    border-top: 1px solid #f2e5d8;
+    flex-shrink: 0;
+}
+
+/* =========================================================
+   FORM LAYOUT
+   ========================================================= */
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+}
+
+/* =========================================================
+   IMAGE PREVIEW
+   ========================================================= */
+
+.img-preview {
+    width: 100%;
+    max-height: 180px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid #ececec;
+    margin-top: 10px;
+}
+
+/* =========================================================
+   BODY LOCK WHEN MODAL IS OPEN
+   ========================================================= */
+
+body.modal-open {
+    overflow: hidden;
+}
+
+/* =========================================================
+   MOBILE RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+    .modal-backdrop {
+        align-items: flex-start;
+        padding: 16px;
+        padding-top: 24px;
+        padding-bottom: 24px;
+    }
+
+    .modal {
+        width: 100%;
+        max-width: 100%;
+        max-height: calc(100vh - 48px);
+        border-radius: 16px;
+    }
+
+    .modal-body {
+        padding: 18px;
+    }
+
+    .modal-footer {
+        padding: 16px 18px;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* =========================================================
+   MODAL CONTAINER 1
+   ========================================================= */
+.modal1 {
+    position: relative;
+    width: 100%;
+    max-width: 650px;
+    background: #fff;
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    height: 85vh; /* Fixed height */
+    max-height: 77vh;
+    box-shadow: 0 25px 80px rgba(0,0,0,.25), 0 8px 24px rgba(0,0,0,.12);
+}
+
+.modal-sm1 {
+    max-width: 450px;
+}
+
+@keyframes modalShow {
+    from {
+        opacity: 0;
+        transform: translateY(25px) scale(.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* =========================================================
+   MODAL HEADER
+   ========================================================= */
+
+.modal-hdr1 {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 24px;
+    background: #fffaf5;
+    border-bottom: 1px solid #f2e5d8;
+    flex-shrink: 0;
+}
+
+.modal-hdr-icon1 {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: rgba(255,140,0,.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FF8C00;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+    .modal-hdr-icon.danger1 {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+.modal-hdr-text1 {
+    flex: 1;
+}
+
+.modal-hdr1 h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #222;
+}
+
+.modal-hdr-sub1 {
+    margin-top: 3px;
+    font-size: 13px;
+    color: #888;
+}
+
+/* =========================================================
+   CLOSE BUTTON
+   ========================================================= */
+
+.close-btn1 {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid #e5e5e5;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 20px;
+    transition: .15s;
+    flex-shrink: 0;
+}
+
+    .close-btn1:hover {
+        background: #fee2e2;
+        border-color: #fecaca;
+        color: #dc2626;
+    }
+
+/* =========================================================
+   MODAL BODY
+   ========================================================= */
+
+.modal-body1 {
+    flex: 1;
+    overflow-y: scroll; /* Always show scrollbar */
+    overflow-x: hidden;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+    .modal-body1::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    .modal-body1::-webkit-scrollbar-track {
+        background: #f5f5f5;
+        border-radius: 999px;
+    }
+
+    .modal-body1::-webkit-scrollbar-thumb {
+        background: #FF8C00;
+        border-radius: 999px;
+    }
+
+        .modal-body1::-webkit-scrollbar-thumb:hover {
+            background: #e07b00;
+        }
+
+/* =========================================================
+   MODAL FOOTER
+   ========================================================= */
+
+.modal-footer1 {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 18px 24px;
+    background: #fffaf5;
+    border-top: 1px solid #f2e5d8;
+    flex-shrink: 0;
+}
+
+/* =========================================================
+   FORM LAYOUT
+   ========================================================= */
+
+.form-row1 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+}
+
+.form-group1 {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-label1 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+}
+
+/* ===========================
+   CAFE MODAL SYSTEM
+   =========================== */
+
+.cafe-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    backdrop-filter: blur(4px);
+}
+
+.cafe-modal {
+    background: #fff;
+    border-radius: 18px;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.12);
+    animation: cafeModalFade .25s ease;
+}
+
+/* Different Sizes */
+
+.cafe-modal-sm {
+    max-width: 500px;
+}
+
+.cafe-modal-md {
+    max-width: 700px;
+}
+
+.cafe-modal-lg {
+    max-width: 900px;
+}
+
+/* Header */
+
+.cafe-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
+}
+
+    .cafe-modal-header h2 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 700;
+        color: #111827;
+    }
+
+/* Close Button */
+
+.cafe-modal-close {
+    border: none;
+    background: transparent;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 24px;
+    color: #6b7280;
+    transition: all .2s ease;
+}
+
+    .cafe-modal-close:hover {
+        background: #f3f4f6;
+        color: #111827;
+    }
+
+/* Body */
+.cafe-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 24px;
+    max-height: 65vh;
+    padding-right: 16px;
+}
+
+    /* Scrollbar */
+    .cafe-modal-body::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .cafe-modal-body::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 50px;
+    }
+
+        .cafe-modal-body::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+    .cafe-modal-body::-webkit-scrollbar-track {
+        background: #f8fafc;
+        border-radius: 50px;
+    }
+
+/* Footer */
+.cafe-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 20px 24px;
+    border-top: 1px solid #e5e7eb;
+    background: #fff;
+    flex-shrink: 0;
+}
+/* Animation */
+
+@keyframes cafeModalFade {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Mobile */
+
+@media (max-width: 768px) {
+
+    .cafe-modal-backdrop {
+        padding: 12px;
+    }
+
+    .cafe-modal {
+        width: 100%;
+        max-height: 95vh;
+    }
+
+    .cafe-modal-body {
+        padding: 18px;
+    }
+}
+
+/* ── Assign button ── */
+.assign-btn {
+    color: var(--text-mute);
+}
+
+    .assign-btn:hover {
+        color: #7c3aed;
+        background: #ede9fe;
+    }
+
+/* ── Assignment Modal ── */
+.assign-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.assign-col {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.assign-col-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--surface-2, #f8f5f0);
+    font-weight: 600;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+}
+
+.assign-list {
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.assign-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .15s;
+}
+
+    .assign-item:hover {
+        background: var(--surface-2, #f8f5f0);
+    }
+
+    .assign-item input[type=checkbox] {
+        width: 16px;
+        height: 16px;
+        accent-color: #7c3aed;
+        flex-shrink: 0;
+    }
+
+.assign-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.assign-item-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.assign-item-sub {
+    display: block;
+    font-size: 11px;
+    color: var(--text-mute);
+}
+
+.assign-empty {
+    font-size: 12px;
+    color: var(--text-mute);
+    padding: 12px;
+    text-align: center;
+}
+
+/* ── Item card assignment badge ── */
+.item-assign-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 12px 0;
+}
+
+.assign-chip {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: #ede9fe;
+    color: #7c3aed;
+    font-weight: 500;
+}
+
+    .assign-chip.chip-addon {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+/* Option row price input with peso prefix */
+.opt-price-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.opt-price-prefix {
+    position: absolute;
+    left: 10px;
+    font-size: 13px;
+    color: var(--text-mute);
+    pointer-events: none;
+}
+
+.opt-price-wrap .short {
+    padding-left: 28px; /* make room for the ₱ prefix */
+    width: 100px;
+}
+
+/* Highlight checked assign items */
+.assign-item-checked {
+    background: var(--bg-accent, #fff7f0);
+    border-color: #E8611A !important;
+}
+
+.opt-label-text {
+    flex: 1;
+}
+
+.opt-price {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+}
+
+.price-positive {
+    background: #eaf3de;
+    color: #3b6d11;
+}
+
+.price-zero {
+    background: var(--bg-secondary, #f5f5f5);
+    color: var(--text-mute);
+}
+
+.opt-default-badge {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: #e6f1fb;
+    color: #185fa5;
+    margin-left: 4px;
+}

@@ -1,0 +1,316 @@
+﻿@page
+@model OmsCafe.Pages.Cashier.PaymentModel
+@{
+    ViewData["Title"] = "Payments";
+    ViewData["Subtitle"] = "All confirmed payments";
+}
+
+<link rel="stylesheet" href="~/css/payments.css" />
+
+<div class="payments-page">
+    <div class="payments-header">
+        <div class="header-stats">
+            <div class="stat-badge">
+                <span class="stat-label">Total Transactions</span>
+                <span class="stat-value">@Model.Payments.Count</span>
+            </div>
+            <div class="stat-badge">
+                <span class="stat-label">Total Revenue</span>
+                <span class="stat-value">₱@Model.Payments.Sum(p => p.Amount).ToString("0.00")</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search & Date Filter -->
+    <form method="get" id="filter-form">
+        <div class="search-filters-section">
+            <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                </svg>
+                <input type="text" name="searchQuery" value="@Model.SearchQuery"
+                       placeholder="Search by Order #, Table, or Customer…"
+                       oninput="debouncedSearch(this)" />
+            </div>
+
+            <div class="filter-buttons">
+                @foreach (var (val, label) in new[] {
+                    ("today","Today"), ("week","This Week"),
+                    ("month","This Month"), ("all","All Time") })
+                {
+                    <button type="submit" name="dateFilter" value="@val"
+                            class="filter-btn @(Model.DateFilter == val ? "active" : "")">
+                        @label
+                    </button>
+                }
+
+                <input type="week"
+                       name="weekOf"
+                       value="@Model.WeekOf"
+                       style="font-size:0.82rem;padding:6px 10px;border:1px solid var(--border);
+                border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer;"
+                       onchange="submitWithFilter('pick-week')"
+                       title="Pick a specific week" />
+
+                <input type="month"
+                       name="monthOf"
+                       value="@Model.MonthOf"
+                       style="font-size:0.82rem;padding:6px 10px;border:1px solid var(--border);
+                border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer;"
+                       onchange="submitWithFilter('pick-month')"
+                       title="Pick a specific month" />
+            </div>
+
+            <input type="hidden" name="dateFilter" id="hidden-date-filter" value="@Model.DateFilter" />
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.RangeLabel))
+        {
+            <div style="margin-top:8px;font-size:0.82rem;color:var(--text-muted);padding-left:4px;">
+                Showing: <strong>@Model.RangeLabel</strong>
+                — @Model.Payments.Count transaction@(Model.Payments.Count != 1 ? "s" : "")
+            </div>
+        }
+    </form>
+
+    <!-- Payments Table -->
+    <div class="orders-list-section" style="overflow-x:auto;">
+        @if (!Model.Payments.Any())
+        {
+            <div class="empty-state">
+                <p>No payments found</p>
+                <span class="empty-hint">Try adjusting your filters</span>
+            </div>
+        }
+        else
+        {
+            <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                        <th style="padding:10px 12px;color:var(--text-muted);font-weight:500;">Order #</th>
+                        <th style="padding:10px 12px;color:var(--text-muted);font-weight:500;">Customer</th>
+                        <th style="padding:10px 12px;color:var(--text-muted);font-weight:500;">Table</th>
+                        <th style="padding:10px 12px;color:var(--text-muted);font-weight:500;">Type</th>
+                        <th style="padding:10px 12px;color:var(--text-muted);font-weight:500;">Amount</th>
+                        <th style="padding:10px 12px;color:var(--text-muted);font-weight:500;">Paid At</th>
+                        <th style="padding:10px 12px;color:var(--text-muted);font-weight:500;">Receipt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Model.Payments)
+                    {
+                        <tr style="border-bottom:1px solid var(--border);transition:background 0.15s;"
+                            onmouseover="this.style.background='var(--surface)'"
+                            onmouseout="this.style.background=''">
+                            <td style="padding:10px 12px;font-weight:600;">#@p.OrderNumber</td>
+                            <td style="padding:10px 12px;">@p.CustomerName</td>
+                            <td style="padding:10px 12px;">
+                                @(string.IsNullOrEmpty(p.TableNumber) ? "—" : p.TableNumber)
+                            </td>
+                            <td style="padding:10px 12px;">
+                                <span class="order-type-badge @p.Type">
+                                    @(p.Type == "dine-in" ? "🍽️ Dine-In" : "🛍️ Take-Out")
+                                </span>
+                            </td>
+                            <td style="padding:10px 12px;font-weight:600;color:#E8611A;">
+                                ₱@p.Amount.ToString("0.00")
+                            </td>
+                            <td style="padding:10px 12px;color:var(--text-muted);">
+                                @p.PaidAt.ToString("MMM dd, yyyy hh:mm tt")
+                            </td>
+                            <td style="padding:10px 12px;">
+                                <button class="action-btn btn-print"
+                                        style="padding:6px 12px;font-size:0.8rem;"
+                                        onclick='openPrintPreview(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new
+                                        {
+                                            orderNumber = p.OrderNumber,
+                                            customerName = p.CustomerName ?? "",
+                                            tableNumber = p.TableNumber ?? "",
+                                            type = p.Type ?? "",
+                                            amount = p.Amount.ToString("0.00"),
+                                            paidAt = p.PaidAt.ToString("MMM dd, yyyy hh:mm tt"),
+                                            items = System.Text.Json.JsonSerializer.Deserialize<object>(Model.GetItemsJson(p.OrderId))
+                                        })))'>
+                                    🖨 Print
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<!-- ── PRINT PREVIEW MODAL ─────────────────────────────────────────────────── -->
+<div id="print-preview-overlay"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);
+    z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:1.75rem;
+        max-width:400px;width:92%;max-height:90vh;overflow-y:auto;
+        box-shadow:0 24px 64px rgba(0,0,0,0.35);">
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">
+            <h3 style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;margin:0;">
+                Receipt Preview
+            </h3>
+            <button onclick="closePrintPreview()"
+                    style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#aaa;line-height:1;padding:0;">
+                ×
+            </button>
+        </div>
+
+        <!-- Receipt renders as styled HTML, not plain text -->
+        <div id="receipt-content"
+             style="font-family:'Courier New',Courier,monospace;font-size:0.76rem;
+            line-height:1.7;color:#111;background:#fff;
+            padding:1.25rem 1rem;border:1px dashed #bbb;border-radius:4px;">
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:1.25rem;">
+            <button onclick="triggerPrint()"
+                    class="action-btn btn-print"
+                    style="flex:1;justify-content:center;padding:10px;">
+                🖨 Print Receipt
+            </button>
+            <button onclick="closePrintPreview()"
+                    class="action-btn btn-cancel"
+                    style="flex:1;justify-content:center;padding:10px;">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Dedicated printable area — only shown during window.print() -->
+<div id="printable-receipt" style="display:none;"></div>
+
+<style>
+    @@media print {
+        body > * {
+            display: none !important;
+        }
+
+        #printable-receipt {
+            display: block !important;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            line-height: 1.7;
+            color: #000;
+            width: 72mm;
+            margin: 0 auto;
+            padding: 8px;
+        }
+    }
+</style>
+
+<script>
+    let searchTimeout;
+    function debouncedSearch(input) {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => input.form.submit(), 400);
+    }
+
+    function submitWithFilter(filterValue) {
+        document.getElementById('hidden-date-filter').value = filterValue;
+        document.getElementById('filter-form').submit();
+    }
+
+    // ── PRINT PREVIEW ──────────────────────────────────────────────────────────
+    function openPrintPreview(data) {
+        const W = 38;
+
+        const center = (str) => {
+            str = str || '';
+            const pad = Math.max(0, W - str.length);
+            return ' '.repeat(Math.floor(pad / 2)) + str;
+        };
+
+        const padRow = (left, right) => {
+            left  = left  || '';
+            right = right || '';
+            const gap = Math.max(1, W - left.length - right.length);
+            return left + ' '.repeat(gap) + right;
+        };
+
+        const divider  = '- - - - - - - - - - - - - - - - - - -';
+        const solidDiv = '--------------------------------------';
+
+        // Build items lines
+        let itemLines = [];
+        const items = data.items || [];
+        if (items.length) {
+            items.forEach(item => {
+                const label = `${item.quantity}x ${item.name}`;
+                const price = `\u20B1${parseFloat(item.price).toFixed(2)}`;
+                itemLines.push(padRow(label, price));
+                if (item.customization)       itemLines.push(`   \u2192 ${item.customization}`);
+                if (item.specialInstructions) itemLines.push(`   \uD83D\uDCDD ${item.specialInstructions}`);
+            });
+        } else {
+            itemLines.push('(no item details available)');
+        }
+
+        const total    = parseFloat(data.amount) || 0;
+        const typeStr  = data.type === 'dine-in' ? 'Dine In' : 'Take Out';
+        const tableStr = data.tableNumber && data.tableNumber !== '' && data.tableNumber !== '—'
+                         ? `Table: ${data.tableNumber}` : '';
+
+        // Build as array of lines — no indentation issues
+        const lines = [
+            center('VERSO'),
+            center('CAFE'),
+            '',
+            center('VERSO CAFE'),
+            center('G/F Reylilia Building,'),
+            center('Commonwealth Ave, Fairview'),
+            divider,
+            'Employee: Cashier',
+            'POS: POS 1',
+            divider,
+            typeStr + (tableStr ? `\n${tableStr}` : ''),
+            `Customer: ${data.customerName || '\u2014'}`,
+            divider,
+            ...itemLines,
+            solidDiv,
+            padRow('Total', `\u20B1${total.toFixed(2)}`),
+            solidDiv,
+            '',
+            center('Where Every Cup Tells a Verse'),
+            '',
+            padRow(data.paidAt || '', data.orderNumber ? `#${data.orderNumber}` : '')
+        ];
+
+        const text = lines.join('\n');
+
+        // Render in modal as <pre> so spacing is preserved without pre-wrap artifacts
+        document.getElementById('receipt-content').innerHTML =
+            `<pre style="margin:0;font-family:inherit;font-size:inherit;white-space:pre;">${escapeHtml(text)}</pre>`;
+
+        // Printable copy
+        document.getElementById('printable-receipt').innerHTML =
+            `<pre style="margin:0;font-family:inherit;font-size:inherit;white-space:pre;">${escapeHtml(text)}</pre>`;
+
+        // Show overlay — must set both display and flex
+        const overlay = document.getElementById('print-preview-overlay');
+        overlay.style.display    = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+    }
+
+    function escapeHtml(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    function closePrintPreview() {
+        document.getElementById('print-preview-overlay').style.display = 'none';
+    }
+
+    function triggerPrint() {
+        window.print();
+    }
+</script>

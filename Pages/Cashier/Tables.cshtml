@@ -1,0 +1,258 @@
+﻿@page
+@model OmsCafe.Pages.Cashier.TablesModel
+@using OmsCafe.Models
+@{
+    ViewData["Title"] = "Table Management";
+    ViewData["Subtitle"] = "Monitor and update table status";
+}
+
+<link rel="stylesheet" href="~/css/tables.css" />
+
+<!-- ── Summary Bar ── -->
+<div class="tbl-summary">
+    <div class="tbl-stat-card available">
+        <span class="tbl-stat-num" id="count-available">0</span>
+        <span class="tbl-stat-label">Available</span>
+    </div>
+    <div class="tbl-stat-card occupied">
+        <span class="tbl-stat-num" id="count-occupied">0</span>
+        <span class="tbl-stat-label">Occupied</span>
+    </div>
+    <div class="tbl-stat-card reserved">
+        <span class="tbl-stat-num" id="count-reserved">0</span>
+        <span class="tbl-stat-label">Reserved</span>
+    </div>
+    <div class="tbl-stat-card cleaning">
+        <span class="tbl-stat-num" id="count-cleaning">0</span>
+        <span class="tbl-stat-label">Needs Cleaning</span>
+    </div>
+</div>
+
+<!-- ── Legend ── -->
+<div class="tbl-legend">
+    <span class="legend-item"><span class="legend-dot available"></span> Available</span>
+    <span class="legend-item"><span class="legend-dot occupied"></span> Occupied</span>
+    <span class="legend-item"><span class="legend-dot reserved"></span> Reserved</span>
+    <span class="legend-item"><span class="legend-dot cleaning"></span> Needs Cleaning</span>
+</div>
+
+<!-- ── Table Grid ── -->
+<div class="tbl-grid" id="tbl-grid">
+    <!-- populated by JS -->
+</div>
+
+<!-- ── Status Picker Modal ── -->
+<div class="tbl-modal-overlay" id="tbl-modal">
+    <div class="tbl-modal">
+        <div class="tbl-modal-header">
+            <div>
+                <p class="tbl-modal-eyebrow">Change Status</p>
+                <h2 class="tbl-modal-title" id="modal-table-label">Table 1</h2>
+            </div>
+            <button class="tbl-modal-close" onclick="closeTableModal()">✕</button>
+        </div>
+
+        <div class="tbl-status-options">
+            <button class="tbl-status-opt available" onclick="setStatus('Available')">
+                <span class="opt-icon">✅</span>
+                <span class="opt-label">Available</span>
+            </button>
+            <button class="tbl-status-opt occupied" onclick="setStatus('Occupied')">
+                <span class="opt-icon">🪑</span>
+                <span class="opt-label">Occupied</span>
+            </button>
+            <button class="tbl-status-opt reserved" onclick="setStatus('Reserved')">
+                <span class="opt-icon">🔖</span>
+                <span class="opt-label">Reserved</span>
+            </button>
+            <button class="tbl-status-opt cleaning" onclick="setStatus('Cleaning')">
+                <span class="opt-icon">🧹</span>
+                <span class="opt-label">Needs Cleaning</span>
+            </button>
+        </div>
+
+        <button class="tbl-modal-cancel" onclick="closeTableModal()">Cancel</button>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script>
+        // ── Data from server ──────────────────────────────────────
+        const TABLES = @Html.Raw(
+                System.Text.Json.JsonSerializer.Serialize(
+                    Model.Tables.Select(t => new
+                    {
+                        id = t.TableId,
+                        number = t.TableNumber,
+                        seats = t.Seats,
+                        status = t.Status
+                    })
+                )
+            );
+
+        // ── State ─────────────────────────────────────────────────
+        let tableData   = TABLES.map(t => ({ ...t }));
+        let activeTable = null;
+
+        // ── Icons & colours ───────────────────────────────────────
+        const STATUS_ICON  = { Available:'✅', Occupied:'🪑', Reserved:'🔖', Cleaning:'🧹' };
+        const STATUS_CLASS = { Available:'available', Occupied:'occupied', Reserved:'reserved', Cleaning:'cleaning' };
+
+        // ── Render grid ───────────────────────────────────────────
+        function renderGrid() {
+        const grid = document.getElementById('tbl-grid');
+        grid.innerHTML = tableData.map(t => `
+        <div class="tbl-card ${STATUS_CLASS[t.status] || 'available'}"
+        onclick="openTableModal('${t.id}')"
+        title="Table ${t.number} — ${t.status}">
+        <div class="tbl-card-top">
+        <span class="tbl-number">T${t.number}</span>
+        <span class="tbl-status-icon">${STATUS_ICON[t.status] || '✅'}</span>
+        </div>
+        <div class="tbl-seats">
+        <span class="seats-icon">👤</span> ${t.seats} seats
+        </div>
+        <div class="tbl-status-label">${t.status === 'Cleaning' ? 'Needs Cleaning' : t.status}</div>
+        </div>
+        `).join('');
+
+        updateCounts();
+        }
+
+        // ── Summary counts ────────────────────────────────────────
+        function updateCounts() {
+        const counts = { Available: 0, Occupied: 0, Reserved: 0, Cleaning: 0 };
+        tableData.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++; });
+        document.getElementById('count-available').textContent = counts.Available;
+        document.getElementById('count-occupied').textContent  = counts.Occupied;
+        document.getElementById('count-reserved').textContent  = counts.Reserved;
+        document.getElementById('count-cleaning').textContent  = counts.Cleaning;
+        }
+
+        // ── Modal ─────────────────────────────────────────────────
+        function openTableModal(tableId) {
+        activeTable = tableData.find(t => t.id === tableId);
+        if (!activeTable) return;
+
+        document.getElementById('modal-table-label').textContent = `Table ${activeTable.number}`;
+
+        document.querySelectorAll('.tbl-status-opt').forEach(btn => {
+        btn.classList.toggle('active', btn.classList.contains(STATUS_CLASS[activeTable.status]));
+        });
+
+        document.getElementById('tbl-modal').classList.add('open');
+        }
+
+        function closeTableModal() {
+        document.getElementById('tbl-modal').classList.remove('open');
+        activeTable = null;
+        }
+
+        // ── Set status ────────────────────────────────────────────
+        async function setStatus(newStatus) {
+        if (!activeTable) return;
+
+        const targetId = activeTable.id;
+
+        // Optimistic UI
+        const idx = tableData.findIndex(t => t.id === targetId);
+        if (idx !== -1) tableData[idx].status = newStatus;
+        renderGrid();
+        closeTableModal();
+
+        // Persist — SignalR will broadcast back to all clients
+        try {
+        await fetch(`/api/tables/${targetId}/status`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ status: newStatus })
+        });
+        } catch (e) {
+        console.error('Failed to save table status:', e);
+        }
+        }
+
+        // ── Close on overlay click ────────────────────────────────
+        document.getElementById('tbl-modal').addEventListener('click', function (e) {
+        if (e.target === this) closeTableModal();
+        });
+
+        // ── SignalR connection ────────────────────────────────────
+        const connection = new signalR.HubConnectionBuilder()
+        .withUrl("/hubs/tables")
+        .withAutomaticReconnect([0, 2000, 5000, 10000])  // retry: immediately, 2s, 5s, 10s
+        .configureLogging(signalR.LogLevel.Warning)
+        .build();
+
+        // Listen for real-time table status updates
+        connection.on("TableStatusChanged", function (updatedTable) {
+        const idx = tableData.findIndex(t => t.id === updatedTable.id);
+        if (idx !== -1) {
+        tableData[idx].status = updatedTable.status;
+        } else {
+        tableData.push(updatedTable); // new table added
+        }
+        renderGrid();
+        showToast(`Table ${updatedTable.number} → ${updatedTable.status}`);
+        });
+
+        // Connection state indicator
+        connection.onreconnecting(() => showToast('⚠️ Reconnecting...'));
+        connection.onreconnected(() =>  showToast('✅ Reconnected'));
+        connection.onclose(() =>        showToast('❌ Connection lost'));
+
+        async function startSignalR() {
+        try {
+        await connection.start();
+        await connection.invoke("JoinTablesDashboard");
+        console.log("SignalR connected — joined tables-dashboard group");
+        } catch (err) {
+        console.error("SignalR connection failed:", err);
+        setTimeout(startSignalR, 5000); // retry after 5s
+        }
+        }
+
+        // ── Toast helper ─────────────────────────────────────────
+        function showToast(msg) {
+        let container = document.getElementById('tbl-toast-container');
+        if (!container) {
+        container = document.createElement('div');
+        container.id = 'tbl-toast-container';
+        container.style.cssText = `
+        position:fixed;bottom:20px;right:20px;z-index:9999;
+        display:flex;flex-direction:column;gap:8px;
+        `;
+        document.body.appendChild(container);
+        }
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+        background:#1a1a1a;color:#fff;padding:10px 16px;
+        border-radius:10px;font-size:0.8rem;font-weight:500;
+        box-shadow:0 4px 12px rgba(0,0,0,0.2);
+        animation:fadeInUp 0.2s ease;
+        `;
+        toast.textContent = msg;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+        }
+
+        // ── Polling fallback (runs every 15s in case SignalR drops) ──
+        setInterval(async () => {
+        // Skip if SignalR is connected — it's already handling updates
+        if (connection.state === signalR.HubConnectionState.Connected) return;
+
+        try {
+        const res  = await fetch('/api/tables');
+        const data = await res.json();
+        tableData  = data;
+        renderGrid();
+        console.log('Polled table statuses (SignalR offline)');
+        } catch (e) { /* silent */ }
+        }, 3000);
+
+        // ── Init ──────────────────────────────────────────────────
+        renderGrid();
+        startSignalR();
+    </script>
+}

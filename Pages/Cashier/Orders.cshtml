@@ -1,0 +1,803 @@
+﻿@page
+@model OmsCafe.Pages.Cashier.OrdersModel
+@{
+    ViewData["Title"] = "Order Management";
+    ViewData["Subtitle"] = "Manage all active orders in real-time";
+}
+
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="~/css/orders.css" />
+
+<!-- ── CALL STAFF NOTIFICATION BANNER ── -->
+<div id="staff-notif-banner" style="display:none;">
+    <div class="staff-notif-inner">
+        <span class="staff-notif-icon">🔔</span>
+        <div class="staff-notif-text">
+            <strong id="staff-notif-title">Customer is calling for staff</strong>
+            <span id="staff-notif-sub"></span>
+        </div>
+        <button class="staff-notif-ack" onclick="acknowledgeCallStaff()">✓ Acknowledge</button>
+        <button class="staff-notif-dismiss" onclick="dismissNotif()">✕</button>
+    </div>
+</div>
+
+<!-- ── CALL STAFF NOTIFICATION TOAST LIST ── -->
+<div id="staff-toast-stack" style="position:fixed;top:80px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px;"></div>
+
+
+<div class="orders-page">
+    <!-- Header -->
+    <div class="orders-header">
+        <div class="header-stats">
+            <div class="stat-badge">
+                <span class="stat-label">Total Orders</span>
+                <span class="stat-value" id="hdr-total">@Model.AllOrders.Count</span>
+            </div>
+            <div class="stat-badge">
+                <span class="stat-label">In Progress</span>
+                <span class="stat-value" id="hdr-inprogress">
+                    @Model.AllOrders.Count(o => o.Status == "pending"
+                        || o.Status == "preparing"
+                        || o.Status == "ready")
+                </span>
+            </div>
+            <div class="stat-badge">
+                <span class="stat-label">Ready</span>
+                <span class="stat-value" id="hdr-ready">@Model.AllOrders.Count(o => o.Status == "ready")</span>
+            </div>
+            <!-- Staff call indicator -->
+            <div class="stat-badge" id="staff-call-badge" style="display:none;cursor:pointer;border-color:#E8611A;" onclick="showStaffBanner()">
+                <span class="stat-label" style="color:#E8611A;">🔔 Staff Calls</span>
+                <span class="stat-value" id="staff-call-count" style="color:#E8611A;">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search & Filters -->
+    <form method="get" id="filterForm">
+        <div class="search-filters-section">
+            <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <input type="text"
+                       name="searchQuery"
+                       value="@Model.SearchQuery"
+                       placeholder="Search by Order #, Table, or Item..."
+                       oninput="debouncedSearch(this)" />
+            </div>
+            <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+
+            <div class="filter-buttons">
+                @foreach (var filter in new[] { "all", "pending", "preparing", "ready", "paid" })
+                {
+                    var label = filter == "all" ? "All Orders" : filter == "paid" ? "Completed" : char.ToUpper(filter[0]) + filter.Substring(1);
+                    <button type="submit" name="selectedFilter" value="@filter"
+                            class="filter-btn @(Model.SelectedFilter == filter ? "active" : "")">
+                        @label
+                    </button>
+                }
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs-section">
+            @foreach (var tab in new[] { ("dine-in", "Dine-In"), ("take-out", "Take-Out"), ("completed", "Completed") })
+            {
+                <button type="submit" name="selectedTab" value="@tab.Item1"
+                        class="tab-btn @(Model.SelectedTab == tab.Item1 ? "active" : "")">
+                    @if (tab.Item1 == "dine-in")
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 9l12 0"></path>
+                            <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                            <path d="M5 21h14"></path>
+                        </svg>
+                    }
+                    else if (tab.Item1 == "take-out")
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <path d="M16 10a4 4 0 0 1-8 0"></path>
+                        </svg>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    }
+                    <span>@tab.Item2</span>
+                    <span class="tab-badge" id="tab-badge-@tab.Item1">
+                        @(tab.Item1 == "completed"
+                            ? Model.AllOrders.Count(o => o.Status == "served")
+                            : Model.OrdersFiltered.Count(o => o.Type == tab.Item1))
+                    </span>
+                </button>
+            }
+        </div>
+    </form>
+
+    <!-- Orders Grid -->
+    <div class="orders-list-section">
+        @if (!Model.OrdersFiltered.Any())
+        {
+            <div class="empty-state" id="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"></path>
+                </svg>
+                <p>No orders found</p>
+                <span class="empty-hint">Try adjusting your filters</span>
+            </div>
+        }
+
+        <div class="orders-grid" id="orders-grid">
+            @foreach (var order in Model.OrdersFiltered)
+            {
+                <div class="order-card order-@order.Status"
+                     id="order-card-@order.Id"
+                     data-status="@order.Status"
+                     data-type="@order.Type"
+                     onclick="openPanel(@order.Id)">
+                    <div class="order-card-header">
+                        <div>
+                            <span class="order-number">#@order.OrderNumber</span>
+                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">
+                                @order.CustomerName
+                            </div>
+                        </div>
+                        <div class="order-badges">
+                            <span class="order-type-badge @order.Type">
+                                @(order.Type == "dine-in" ? "🍽️ Dine-In" : "🛍️ Take-Out")
+                            </span>
+                            <span class="order-status-badge @order.Status"
+                                  id="status-badge-@order.Id">@order.Status</span>
+                        </div>
+                    </div>
+
+                    <div class="order-card-content">
+                        <div class="order-details-grid">
+                            @if (!string.IsNullOrEmpty(order.Table))
+                            {
+                                <div class="detail-item">
+                                    <span class="detail-label">Table</span>
+                                    <span class="detail-value">@order.Table</span>
+                                </div>
+                            }
+                            <div class="detail-item">
+                                <span class="detail-label">Items</span>
+                                <span class="detail-value">@order.ItemCount</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Time</span>
+                                <span class="detail-value time-badge" id="elapsed-@order.Id">@order.ElapsedTime</span>
+                            </div>
+                        </div>
+
+                        <div class="items-preview">
+                            @foreach (var item in order.Items.Take(2))
+                            {
+                                <div class="item-preview">
+                                    <span class="item-qty">@item.Quantity×</span>
+                                    <span class="item-name">@item.Name</span>
+                                </div>
+                            }
+                            @if (order.Items.Count > 2)
+                            {
+                                <div class="items-more">+@(order.Items.Count - 2) more items</div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="order-card-footer">
+                        <div class="order-price">
+                            <span class="price-label">Total</span>
+                            <span class="price-value">₱@order.Total.ToString("0.00")</span>
+                        </div>
+                        <a class="btn-view" href="#" onclick="event.stopPropagation(); openPanel(@order.Id); return false;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                            View
+                        </a>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Order Detail Panel -->
+@foreach (var order in Model.AllOrders)
+{
+    <div id="panel-overlay-@order.Id" class="panel-overlay" style="display:none;" onclick="closePanel(@order.Id)"></div>
+
+    <div id="panel-@order.Id" class="order-details-panel" style="display:none;">
+        <div class="panel-header">
+            <div class="panel-header-content">
+                <h2>Order #@order.OrderNumber</h2>
+                <p class="panel-subtitle" id="panel-status-@order.Id">
+                    @order.Status.ToUpper() • @order.ElapsedTime elapsed
+                </p>
+            </div>
+            <a href="#" class="btn-close" onclick="closePanel(@order.Id); return false;">×</a>
+        </div>
+
+        <div class="panel-content">
+            <div class="panel-section">
+                <h3>Order Information</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Customer</label>
+                        <p>@order.CustomerName</p>
+                    </div>
+                    <div class="info-item">
+                        <label>Order Type</label>
+                        <div class="info-badge @order.Type">@order.Type</div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(order.Table))
+                    {
+                        <div class="info-item">
+                            <label>Table</label>
+                            <p>@order.Table</p>
+                        </div>
+                    }
+                    <div class="info-item">
+                        <label>Status</label>
+                        <div class="info-badge @order.Status" id="panel-status-badge-@order.Id">@order.Status</div>
+                    </div>
+                    <div class="info-item">
+                        <label>Time</label>
+                        <p id="panel-elapsed-@order.Id">@order.ElapsedTime</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>Items Ordered</h3>
+                <div class="items-list">
+                    @foreach (var item in order.Items)
+                    {
+                        <div class="item-row">
+                            <div class="item-details">
+                                <p class="item-main">@item.Quantity × @item.Name</p>
+                                @if (!string.IsNullOrEmpty(item.Customization))
+                                {
+                                    <p class="item-meta">→ @item.Customization</p>
+                                }
+                                @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                {
+                                    <p class="item-meta">📝 @item.SpecialInstructions</p>
+                                }
+                            </div>
+                            <p class="item-price">₱@item.Price.ToString("0.00")</p>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>Summary</h3>
+                <div class="summary-table">
+                    <div class="summary-row">
+                        <span>Subtotal</span>
+                        <span>₱@((order.Total * 0.85m).ToString("0.00"))</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Tax (12%)</span>
+                        <span>₱@((order.Total * 0.10m).ToString("0.00"))</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Total Amount</span>
+                        <span>₱@order.Total.ToString("0.00")</span>
+                    </div>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(order.SpecialInstructions))
+            {
+                <div class="panel-section">
+                    <h3>Special Instructions</h3>
+                    <div class="special-instructions">@order.SpecialInstructions</div>
+                </div>
+            }
+
+        </div>
+
+        <div class="panel-actions" id="panel-actions-@order.Id">
+            @if (order.Status == "awaiting_payment")
+            {
+                <form method="post" asp-page-handler="UpdateStatus">
+                    <input type="hidden" name="orderId" value="@order.Id" />
+                    <input type="hidden" name="newStatus" value="pending" />
+                    <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+                    <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
+                    <button type="submit" class="action-btn btn-paid">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                            <line x1="1" y1="10" x2="23" y2="10"></line>
+                        </svg>
+                        Mark as Paid → Send to Kitchen
+                    </button>
+                </form>
+                <form method="post" asp-page-handler="UpdateStatus">
+                    <input type="hidden" name="orderId" value="@order.Id" />
+                    <input type="hidden" name="newStatus" value="cancelled" />
+                    <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+                    <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
+                    <button type="submit" class="action-btn btn-cancel">Cancel Order</button>
+                </form>
+            }
+
+            @if (order.Status == "pending")
+            {
+                <form method="post" asp-page-handler="UpdateStatus">
+                    <input type="hidden" name="orderId" value="@order.Id" />
+                    <input type="hidden" name="newStatus" value="preparing" />
+                    <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+                    <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
+                    <button type="submit" class="action-btn btn-accept">Accept Order</button>
+                </form>
+            }
+
+            @if (order.Status == "preparing")
+            {
+                <form method="post" asp-page-handler="UpdateStatus">
+                    <input type="hidden" name="orderId" value="@order.Id" />
+                    <input type="hidden" name="newStatus" value="ready" />
+                    <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+                    <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
+                    <button type="submit" class="action-btn btn-ready">Mark Ready</button>
+                </form>
+            }
+
+            @if (order.Status == "ready")
+            {
+                <form method="post" asp-page-handler="UpdateStatus">
+                    <input type="hidden" name="orderId" value="@order.Id" />
+                    <input type="hidden" name="newStatus" value="paid" />
+                    <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+                    <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
+                    <button type="submit" class="action-btn btn-paid">
+                        Mark Served
+                    </button>
+                </form>
+            }
+
+            <form method="post" asp-page-handler="PrintReceipt">
+                <input type="hidden" name="orderId" value="@order.Id" />
+                <button type="submit" class="action-btn btn-print">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                    </svg>
+                    Print Receipt
+                </button>
+            </form>
+            <a href="#" class="action-btn btn-cancel" onclick="closePanel(@order.Id); return false;">Cancel</a>
+        </div>
+    </div>
+}
+
+<script>
+    // ── PANEL ──────────────────────────────────────────────────────────────────
+    function openPanel(orderId) {
+        document.getElementById('panel-' + orderId).style.display = 'flex';
+        document.getElementById('panel-overlay-' + orderId).style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    }
+    function closePanel(orderId) {
+        document.getElementById('panel-' + orderId).style.display = 'none';
+        document.getElementById('panel-overlay-' + orderId).style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    // ── DEBOUNCED SEARCH (prevent double-submit on oninput) ───────────────────
+    let searchTimeout;
+    function debouncedSearch(input) {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => input.form.submit(), 400);
+    }
+
+    // ── STATE ─────────────────────────────────────────────────────────────────
+    // Track current tab & filter so we know which cards belong on screen.
+    const ACTIVE_TAB    = '@Model.SelectedTab';
+    const ACTIVE_FILTER = '@Model.SelectedFilter';
+
+    // Statuses that belong in the "completed" tab
+    const COMPLETED_STATUSES = new Set(['served']);
+
+    // Statuses that are still active (should show in dine-in / take-out tabs)
+    const ACTIVE_STATUSES = new Set(['awaiting_payment', 'pending', 'preparing', 'ready']);
+
+    // ── SILENT SYNC ───────────────────────────────────────────────────────────
+    // Fetches all orders from the KDS API every 5 seconds and:
+    //  1. Updates status badges in-place (no flicker)
+    //  2. Smoothly removes cards that have been marked served/completed by KDS
+    //  3. Updates the panel subtitle and action buttons if a panel is open
+    //  4. Refreshes header stat counters
+
+    async function syncOrderStatuses() {
+        try {
+            const res = await fetch('/api/kds/orders-all');
+            if (!res.ok) return;
+            const orders = await res.json();
+
+            let totalCount      = orders.length;
+            let inProgressCount = 0;
+            let readyCount      = 0;
+
+            orders.forEach(order => {
+                const newStatus = order.status;
+
+                // ── 1. Update the status badge on the card ──────────────────
+                const badge = document.getElementById(`status-badge-${order.id}`);
+                if (badge && badge.textContent !== newStatus) {
+                    badge.textContent  = newStatus;
+                    badge.className    = `order-status-badge ${newStatus}`;
+                    badge.dataset.prev = newStatus;
+
+                    const card = document.getElementById(`order-card-${order.id}`);
+                    if (card) {
+                        card.className = card.className
+                            .replace(/order-\S+/g, '')
+                            .trim() + ` order-${newStatus}`;
+                        card.dataset.status = newStatus;
+
+                        card.classList.remove('order-card-updated');
+                        void card.offsetWidth;
+                        card.classList.add('order-card-updated');
+                    }
+                }
+
+                // ── 2. Update elapsed time on card ──────────────────────────
+                const elapsedEl = document.getElementById(`elapsed-${order.id}`);
+                if (elapsedEl && order.elapsedTime) {
+                    elapsedEl.textContent = order.elapsedTime;
+                }
+
+                // ── 3. Update panel subtitle if open ────────────────────────
+                const panelSub = document.getElementById(`panel-status-${order.id}`);
+                if (panelSub) {
+                    panelSub.textContent = `${newStatus.toUpperCase()} • ${order.elapsedTime || ''} elapsed`;
+                }
+                const panelStatusBadge = document.getElementById(`panel-status-badge-${order.id}`);
+                if (panelStatusBadge) {
+                    panelStatusBadge.textContent = newStatus;
+                    panelStatusBadge.className   = `info-badge ${newStatus}`;
+                }
+                const panelElapsed = document.getElementById(`panel-elapsed-${order.id}`);
+                if (panelElapsed && order.elapsedTime) {
+                    panelElapsed.textContent = order.elapsedTime;
+                }
+
+                // ── 4. Rebuild action buttons in open panel ──────────────────
+                const panelActions = document.getElementById(`panel-actions-${order.id}`);
+                if (panelActions) {
+                    const rebuilt = buildActionButtons(order);
+                    if (rebuilt) panelActions.innerHTML = rebuilt;
+                }
+
+                // ── 5. Handle completed status ────────────────────────────────
+                if (COMPLETED_STATUSES.has(newStatus)) {
+                    if (ACTIVE_TAB !== 'completed') {
+                        // Remove from active tabs with fade-out animation
+                        const card = document.getElementById(`order-card-${order.id}`);
+                        if (card && !card.classList.contains('order-card-exit')) {
+                            card.classList.add('order-card-exit');
+                            setTimeout(() => {
+                                card.remove();
+                                checkEmptyState();
+                            }, 360);
+                        }
+                    } else {
+                        // On completed tab: inject the card if it isn't already there
+                        if (!document.getElementById(`order-card-${order.id}`)) {
+                            injectCompletedCard(order);
+                        }
+                    }
+                }
+
+                // ── Counter tallies ──────────────────────────────────────────
+                if (ACTIVE_STATUSES.has(newStatus)) inProgressCount++;
+                if (newStatus === 'ready') readyCount++;
+            });
+
+            // ── 6. Update header stat counters silently ──────────────────────
+            const hdrTotal  = document.getElementById('hdr-total');
+            const hdrInProg = document.getElementById('hdr-inprogress');
+            const hdrReady  = document.getElementById('hdr-ready');
+            if (hdrTotal)  hdrTotal.textContent  = totalCount;
+            if (hdrInProg) hdrInProg.textContent = inProgressCount;
+            if (hdrReady)  hdrReady.textContent  = readyCount;
+
+            // ── 7. Apply active filter: hide cards that don't match ──────────
+            if (ACTIVE_FILTER !== 'all') {
+                document.querySelectorAll('#orders-grid .order-card').forEach(card => {
+                    const s = card.dataset.status;
+                    const matches = (ACTIVE_FILTER === 'paid')
+                        ? COMPLETED_STATUSES.has(s)
+                        : s === ACTIVE_FILTER;
+                    card.style.display = matches ? '' : 'none';
+                });
+            }
+
+            // ── 8. Update completed tab badge count ──────────────────────────
+            // After the header stat counters update:
+            const completedCount = orders.filter(o => COMPLETED_STATUSES.has(o.status)).length;
+            const completedBadge = document.getElementById('tab-badge-completed');
+            if (completedBadge) completedBadge.textContent = completedCount;
+
+        } catch(e) {
+            console.error('Sync error:', e);
+        }
+    }
+        function injectCompletedCard(order) {
+        const grid = document.getElementById('orders-grid');
+        if (!grid) return;
+
+        const typeLabel = order.type === 'dine-in' ? '🍽️ Dine-In' : '🛍️ Take-Out';
+        const itemsHtml = (order.items || []).slice(0, 2).map(item =>
+            `<div class="item-preview">
+                <span class="item-qty">${item.quantity}×</span>
+                <span class="item-name">${item.name}</span>
+            </div>`
+        ).join('');
+        const moreHtml = (order.items || []).length > 2
+            ? `<div class="items-more">+${order.items.length - 2} more items</div>`
+            : '';
+        const tableHtml = order.table
+            ? `<div class="detail-item">
+                   <span class="detail-label">Table</span>
+                   <span class="detail-value">${order.table}</span>
+               </div>`
+            : '';
+
+        const card = document.createElement('div');
+        card.className = `order-card order-${order.status}`;
+        card.id = `order-card-${order.id}`;
+        card.dataset.status = order.status;
+        card.dataset.type = order.type || '';
+        card.style.animation = 'cardPulse 0.6s ease';
+        card.setAttribute('onclick', `openPanel(${order.id})`);
+        card.innerHTML = `
+            <div class="order-card-header">
+                <div>
+                    <span class="order-number">#${order.orderNumber}</span>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">
+                        ${order.customerName || ''}
+                    </div>
+                </div>
+                <div class="order-badges">
+                    <span class="order-type-badge ${order.type}">${typeLabel}</span>
+                    <span class="order-status-badge ${order.status}"
+                          id="status-badge-${order.id}">${order.status}</span>
+                </div>
+            </div>
+            <div class="order-card-content">
+                <div class="order-details-grid">
+                    ${tableHtml}
+                    <div class="detail-item">
+                        <span class="detail-label">Items</span>
+                        <span class="detail-value">${order.itemCount || (order.items || []).length}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Time</span>
+                        <span class="detail-value time-badge" id="elapsed-${order.id}">${order.elapsedTime || ''}</span>
+                    </div>
+                </div>
+                <div class="items-preview">${itemsHtml}${moreHtml}</div>
+            </div>
+            <div class="order-card-footer">
+                <div class="order-price">
+                    <span class="price-label">Total</span>
+                    <span class="price-value">₱${(order.total || 0).toFixed(2)}</span>
+                </div>
+                <a class="btn-view" href="#" onclick="event.stopPropagation(); openPanel(${order.id}); return false;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    View
+                </a>
+            </div>`;
+
+        grid.prepend(card); // newest completed orders appear first
+
+        // Hide the empty state if it was showing
+        const empty = document.getElementById('empty-state');
+        if (empty) empty.style.display = 'none';
+    }
+
+    // Show empty state message if grid becomes empty
+    function checkEmptyState() {
+        const grid  = document.getElementById('orders-grid');
+        const cards = grid ? grid.querySelectorAll('.order-card:not(.order-card-exit)') : [];
+        const empty = document.getElementById('empty-state');
+        if (!cards.length && empty) {
+            empty.style.display = '';
+        }
+    }
+
+    // ── BUILD ACTION BUTTONS (for panel re-render) ────────────────────────────
+    function buildActionButtons(order) {
+        let html  = '';
+        const token = document.querySelector('input[name=__RequestVerificationToken]')?.value || '';
+        const tab   = ACTIVE_TAB;
+        const filt  = ACTIVE_FILTER;
+
+        const hiddens = `
+            <input type="hidden" name="__RequestVerificationToken" value="${token}" />
+            <input type="hidden" name="selectedTab"    value="${tab}" />
+            <input type="hidden" name="selectedFilter" value="${filt}" />
+            <input type="hidden" name="orderId"        value="${order.id}" />`;
+
+        if (order.status === 'awaiting_payment') {
+            html += `
+            <form method="post" action="?handler=UpdateStatus">
+                ${hiddens}
+                <input type="hidden" name="newStatus" value="pending" />
+                <button type="submit" class="action-btn btn-paid">💳 Mark as Paid → Send to Kitchen</button>
+            </form>
+            <form method="post" action="?handler=UpdateStatus">
+                ${hiddens}
+                <input type="hidden" name="newStatus" value="cancelled" />
+                <button type="submit" class="action-btn btn-cancel">✕ Cancel Order</button>
+            </form>`;
+        }
+        if (order.status === 'pending') {
+            html += `
+            <form method="post" action="?handler=UpdateStatus">
+                ${hiddens}
+                <input type="hidden" name="newStatus" value="preparing" />
+                <button type="submit" class="action-btn btn-accept">▶ Accept Order</button>
+            </form>`;
+        }
+        if (order.status === 'preparing') {
+            html += `
+            <form method="post" action="?handler=UpdateStatus">
+                ${hiddens}
+                <input type="hidden" name="newStatus" value="ready" />
+                <button type="submit" class="action-btn btn-ready">✓ Mark Ready</button>
+            </form>`;
+        }
+        if (order.status === 'ready') {
+            html += `
+            <form method="post" action="?handler=UpdateStatus">
+                ${hiddens}
+                <input type="hidden" name="newStatus" value="paid" />
+                <button type="submit" class="action-btn btn-paid"> Served </button>
+            </form>`;
+        }
+
+        html += `
+            <form method="post" action="?handler=PrintReceipt">
+                <input type="hidden" name="__RequestVerificationToken" value="${token}" />
+                <input type="hidden" name="orderId" value="${order.id}" />
+                <button type="submit" class="action-btn btn-print">🖨 Print Receipt</button>
+            </form>
+            <a href="#" class="action-btn btn-cancel" onclick="closePanel(${order.id}); return false;">Close</a>`;
+
+        return html;
+    }
+
+    // ── CALL STAFF NOTIFICATION SYSTEM ───────────────────────────────────────
+    let pendingCallStaff = [];
+    let seenCallIds      = new Set();
+    let currentCallData  = null;
+
+    async function pollCallStaffNotifications() {
+        try {
+            const res = await fetch('/api/notifications/call-staff/pending');
+            if (!res.ok) return;
+            const calls = await res.json();
+
+            calls.forEach(call => {
+                if (seenCallIds.has(call.id)) return;
+                seenCallIds.add(call.id);
+                pendingCallStaff.push(call);
+                showStaffToast(call);
+                playCallChime();
+            });
+
+            const badge = document.getElementById('staff-call-badge');
+            const count = document.getElementById('staff-call-count');
+            if (pendingCallStaff.length > 0) {
+                badge.style.display = '';
+                count.textContent   = pendingCallStaff.length;
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch(e) {
+            console.error('Call staff poll error:', e);
+        }
+    }
+
+    function showStaffToast(call) {
+        const stack = document.getElementById('staff-toast-stack');
+        const toast = document.createElement('div');
+        toast.className = 'staff-toast';
+        toast.id = `staff-toast-${call.id}`;
+        toast.innerHTML = `
+            <span class="staff-toast-icon">🔔</span>
+            <div class="staff-toast-body">
+                <div class="staff-toast-title">Customer calling — ${call.tableNumber ? 'Table ' + call.tableNumber : call.orderNumber}</div>
+                <div class="staff-toast-sub">${call.message || 'Requesting staff assistance'}</div>
+            </div>
+            <button class="staff-toast-ack" onclick="acknowledgeCall(${call.id}, this)">Go</button>`;
+        stack.appendChild(toast);
+        setTimeout(() => toast.remove(), 30000);
+    }
+
+    function showStaffBanner() {
+        if (!pendingCallStaff.length) return;
+        currentCallData = pendingCallStaff[0];
+        document.getElementById('staff-notif-title').textContent =
+            `🔔 Customer calling — ${currentCallData.tableNumber ? 'Table ' + currentCallData.tableNumber : currentCallData.orderNumber}`;
+        document.getElementById('staff-notif-sub').textContent =
+            currentCallData.message || 'Requesting staff for payment';
+        document.getElementById('staff-notif-banner').style.display = '';
+        document.querySelector('.orders-page').style.marginTop = '64px';
+    }
+
+    function dismissNotif() {
+        document.getElementById('staff-notif-banner').style.display = 'none';
+        document.querySelector('.orders-page').style.marginTop = '';
+    }
+
+    async function acknowledgeCallStaff() {
+        if (!currentCallData) return;
+        await acknowledgeCall(currentCallData.id, null);
+        dismissNotif();
+    }
+
+    async function acknowledgeCall(callId, btn) {
+        if (btn) btn.disabled = true;
+        try {
+            await fetch(`/api/notifications/call-staff/${callId}/acknowledge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+        } catch(e) { /* silent */ }
+
+        pendingCallStaff = pendingCallStaff.filter(c => c.id !== callId);
+        document.getElementById(`staff-toast-${callId}`)?.remove();
+
+        const badge = document.getElementById('staff-call-badge');
+        const count = document.getElementById('staff-call-count');
+        if (pendingCallStaff.length > 0) {
+            count.textContent = pendingCallStaff.length;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    function playCallChime() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            [880, 660, 880].forEach((freq, i) => {
+                const osc  = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = freq;
+                osc.type = 'sine';
+                const t = ctx.currentTime + i * 0.2;
+                gain.gain.setValueAtTime(0.4, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+                osc.start(t);
+                osc.stop(t + 0.35);
+            });
+        } catch(e) {}
+    }
+
+
+    // ── INIT ──────────────────────────────────────────────────────────────────
+    syncOrderStatuses();
+    pollCallStaffNotifications();
+    setInterval(syncOrderStatuses,            5000);
+    setInterval(pollCallStaffNotifications,   4000);
+</script>

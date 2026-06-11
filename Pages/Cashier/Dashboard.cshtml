@@ -1,0 +1,262 @@
+﻿@page
+@model OmsCafe.Pages.Cashier.DashboardModel
+@{
+    ViewData["Title"] = "Dashboard";
+    ViewData["Subtitle"] = "Live overview of today's operations";
+}
+
+<link rel="stylesheet" href="~/css/cashier-dashboard.css" />
+
+<!-- ── Stat Cards ─────────────────────────────────────────────── -->
+<div class="cd-stats-row">
+
+    <div class="cd-stat-card">
+        <div class="cd-stat-icon green"><i class="ti ti-cash"></i></div>
+        <div class="cd-stat-body">
+            <div class="cd-stat-label">Sales Today</div>
+            <div class="cd-stat-val" id="stat-sales">—</div>
+            <div class="cd-stat-sub" id="stat-sales-sub">Loading…</div>
+        </div>
+    </div>
+
+    <div class="cd-stat-card">
+        <div class="cd-stat-icon orange"><i class="ti ti-receipt"></i></div>
+        <div class="cd-stat-body">
+            <div class="cd-stat-label">Orders Today</div>
+            <div class="cd-stat-val" id="stat-orders">—</div>
+            <div class="cd-stat-sub" id="stat-orders-sub">Loading…</div>
+        </div>
+    </div>
+
+    <div class="cd-stat-card">
+        <div class="cd-stat-icon blue"><i class="ti ti-chart-bar"></i></div>
+        <div class="cd-stat-body">
+            <div class="cd-stat-label">Avg Order Value</div>
+            <div class="cd-stat-val" id="stat-avg">—</div>
+            <div class="cd-stat-sub" id="stat-avg-sub">Loading…</div>
+        </div>
+    </div>
+
+    <div class="cd-stat-card">
+        <div class="cd-stat-icon purple"><i class="ti ti-armchair"></i></div>
+        <div class="cd-stat-body">
+            <div class="cd-stat-label">Tables Occupied</div>
+            <div class="cd-stat-val" id="stat-tables">—</div>
+            <div class="cd-stat-sub" id="stat-tables-sub">Loading…</div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ── Table Status Strip ──────────────────────────────────────── -->
+<div class="cd-panel">
+    <div class="cd-panel-header">
+        <h3>Table Status</h3>
+        <a href="/Cashier/Tables" class="cd-link">Manage Tables →</a>
+    </div>
+    <div class="cd-tables-strip" id="tables-strip">
+        <div class="cd-empty">Loading…</div>
+    </div>
+</div>
+
+<!-- ── Recent Orders + Top Items ──────────────────────────────── -->
+<div class="cd-two-col">
+
+    <!-- Recent Orders -->
+    <div class="cd-panel">
+        <div class="cd-panel-header">
+            <h3>Recent Orders</h3>
+            <span class="cd-badge" id="pending-badge">0 pending</span>
+        </div>
+        <div class="cd-orders-list" id="recent-orders">
+            <div class="cd-empty">Loading…</div>
+        </div>
+    </div>
+
+    <!-- Top Items -->
+    <div class="cd-panel">
+        <div class="cd-panel-header">
+            <h3>Top Items Today</h3>
+            <span class="cd-panel-sub" id="top-items-date"></span>
+        </div>
+        <div class="cd-top-items" id="top-items">
+            <div class="cd-empty">Loading…</div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ── Last updated ────────────────────────────────────────────── -->
+<div class="cd-last-updated">
+    <i class="ti ti-refresh"></i>
+    Last updated: <span id="last-updated-time">—</span>
+    <span class="cd-refresh-dot" id="refresh-dot"></span>
+</div>
+
+@section Scripts {
+    <script>
+        // ── Helpers ───────────────────────────────────────────────
+        const fmt    = n  => '₱' + parseFloat(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        const fmtNum = n  => parseInt(n || 0).toLocaleString();
+        const pulse  = () => {
+            const dot = document.getElementById('refresh-dot');
+            dot.classList.add('active');
+            setTimeout(() => dot.classList.remove('active'), 600);
+        };
+
+        const STATUS_CLASS = {
+            available : 'ts-available',
+            occupied  : 'ts-occupied',
+            reserved  : 'ts-reserved',
+            cleaning  : 'ts-cleaning'
+        };
+        const STATUS_ICON = {
+            available : '✅',
+            occupied  : '🪑',
+            reserved  : '🔖',
+            cleaning  : '🧹'
+        };
+        const ORDER_STATUS_CLASS = {
+            pending   : 'os-pending',
+            preparing : 'os-preparing',
+            ready     : 'os-ready',
+            served    : 'os-served',
+            completed : 'os-completed',
+            cancelled : 'os-cancelled'
+        };
+
+        // ── Fetch & render all dashboard data ─────────────────────
+        async function loadDashboard() {
+            pulse();
+            try {
+                const [summaryRes, tablesRes, ordersRes, topRes] = await Promise.all([
+                    fetch('/api/dashboard/summary'),
+                    fetch('/api/tables'),
+                    fetch('/api/dashboard/recent-orders'),
+                    fetch('/api/dashboard/top-items')
+                ]);
+
+                const summary = await summaryRes.json();
+                const tables  = await tablesRes.json();
+                const orders  = await ordersRes.json();
+                const topItems = await topRes.json();
+
+                renderSummary(summary);
+                renderTables(tables);
+                renderRecentOrders(orders);
+                renderTopItems(topItems);
+
+                document.getElementById('last-updated-time').textContent =
+                    new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            } catch (e) {
+                console.error('Dashboard load error:', e);
+            }
+        }
+
+        // ── Summary cards ─────────────────────────────────────────
+        function renderSummary(s) {
+            document.getElementById('stat-sales').textContent     = fmt(s.totalSales);
+            document.getElementById('stat-sales-sub').textContent = `${fmtNum(s.totalOrders)} orders placed`;
+
+            document.getElementById('stat-orders').textContent     = fmtNum(s.totalOrders);
+            document.getElementById('stat-orders-sub').innerHTML   =
+                `<span class="text-orange">${s.pendingOrders} pending</span> · ${s.completedOrders} completed`;
+
+            document.getElementById('stat-avg').textContent     = fmt(s.avgOrderValue);
+            document.getElementById('stat-avg-sub').textContent = `${fmtNum(s.totalItemsSold)} items sold`;
+
+            document.getElementById('stat-tables').textContent     = `${s.occupiedTables}/${s.totalTables}`;
+            document.getElementById('stat-tables-sub').textContent = `${s.availableTables} available`;
+        }
+
+        // ── Table status strip ────────────────────────────────────
+        function renderTables(tables) {
+            const strip = document.getElementById('tables-strip');
+            if (!tables.length) {
+                strip.innerHTML = '<div class="cd-empty">No tables found</div>';
+                return;
+            }
+            strip.innerHTML = tables.map(t => `
+                <div class="cd-table-chip ${STATUS_CLASS[t.status.toLowerCase()] || 'ts-available'}"
+                     title="Table ${t.number} — ${t.status} (${t.seats} seats)">
+                    <span class="chip-icon">${STATUS_ICON[t.status.toLowerCase()] || '✅'}</span>
+                    <span class="chip-num">T${t.number}</span>
+                    <span class="chip-status">${t.status}</span>
+                </div>
+            `).join('');
+        }
+
+        // ── Recent orders ─────────────────────────────────────────
+        function renderRecentOrders(orders) {
+            const container = document.getElementById('recent-orders');
+            const pending   = orders.filter(o => o.status.toLowerCase() === 'pending').length;
+            document.getElementById('pending-badge').textContent = `${pending} pending`;
+            document.getElementById('pending-badge').className   =
+                `cd-badge ${pending > 0 ? 'cd-badge-warn' : ''}`;
+
+            if (!orders.length) {
+                container.innerHTML = '<div class="cd-empty">No orders today yet</div>';
+                return;
+            }
+
+            container.innerHTML = orders.map(o => {
+                const dt      = new Date(o.createdAt);
+                const timeStr = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+                const statusKey = o.status.toLowerCase();
+                return `
+                    <div class="cd-order-row">
+                        <div class="cd-order-left">
+                            <div class="cd-order-num">${o.orderNumber}</div>
+                            <div class="cd-order-meta">
+                                ${o.customerName || 'Guest'}
+                                ${o.tableNumber ? ` · T${o.tableNumber}` : ''}
+                                · ${timeStr}
+                            </div>
+                        </div>
+                        <div class="cd-order-right">
+                            <div class="cd-order-amount">${fmt(o.totalAmount)}</div>
+                            <span class="cd-order-status ${ORDER_STATUS_CLASS[statusKey] || 'os-pending'}">
+                                ${o.status}
+                            </span>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        // ── Top items ─────────────────────────────────────────────
+        function renderTopItems(items) {
+            const container = document.getElementById('top-items');
+            document.getElementById('top-items-date').textContent =
+                new Date().toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+
+            if (!items.length) {
+                container.innerHTML = '<div class="cd-empty">No sales data yet</div>';
+                return;
+            }
+
+            const max = items[0]?.qtySold || 1;
+            container.innerHTML = items.map((item, i) => {
+                const pct = ((item.qtySold / max) * 100).toFixed(0);
+                return `
+                    <div class="cd-top-item-row">
+                        <span class="cd-rank ${i === 0 ? 'rank-gold' : i === 1 ? 'rank-silver' : i === 2 ? 'rank-bronze' : ''}">${i + 1}</span>
+                        <div class="cd-top-item-info">
+                            <div class="cd-top-item-name">${item.name}</div>
+                            <div class="cd-top-item-bar-wrap">
+                                <div class="cd-top-item-bar" style="width:${pct}%"></div>
+                            </div>
+                        </div>
+                        <div class="cd-top-item-stats">
+                            <span class="cd-top-qty">${item.qtySold} sold</span>
+                            <span class="cd-top-rev">${fmt(item.revenue)}</span>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        // ── Poll every 8 seconds ──────────────────────────────────
+        loadDashboard();
+        setInterval(loadDashboard, 8000);
+    </script>
+}

@@ -1,0 +1,163 @@
+﻿@page
+@model OmsCafe.Pages.Admin.SettingsModel
+@{
+    ViewData["Title"] = "Settings";
+    ViewData["Subtitle"] = "Manage your workspace preferences and configuration.";
+    var loggedInUser = "admin"; // Replace with session/auth value e.g. HttpContext.Session.GetString("Username")
+    var loggedInRole = "Administrator"; // Replace with session/auth value
+}
+
+@section TopbarActions {
+    <!-- Page Header -->
+    <div class="settings-page-header">
+        <div class="settings-user-badge">
+            <div class="settings-user-badge-avatar">@loggedInUser.Substring(0, 1).ToUpper()</div>
+            <div>
+                <p class="settings-user-badge-name">@loggedInUser</p>
+                <p class="settings-user-badge-role">@loggedInRole</p>
+            </div>
+        </div>
+    </div>
+
+}
+
+<link rel="stylesheet" href="~/css/settings.css" />
+
+<div class="settings-layout">
+
+    <!-- Main Content -->
+    <main class="settings-main">
+
+        <div class="settings-grid">
+
+            <!-- Profile Card -->
+            <section class="settings-card settings-card--profile">
+                <div class="settings-card-header">
+                    <h2>Profile</h2>
+                    <span class="settings-badge settings-badge--active">Active</span>
+                </div>
+                <div class="settings-profile-row">
+                    <div class="settings-avatar-lg">@loggedInUser.Substring(0, 1).ToUpper()</div>
+                    <div class="settings-profile-info">
+                        <p class="settings-profile-name">@loggedInUser</p>
+                        <p class="settings-profile-role">@loggedInRole</p>
+                        <p class="settings-profile-since">Member since January 2024</p>
+                    </div>
+                </div>
+                <div class="settings-divider"></div>
+                <div class="form-group-settings">
+                    <label class="settings-label">Display Name</label>
+                    <input type="text" class="settings-input" value="@loggedInUser" />
+                </div>
+                <div class="form-group-settings">
+                    <label class="settings-label">Email Address</label>
+                    <input type="email" class="settings-input" placeholder="admin@versocafe.com" />
+                </div>
+                <button class="settings-btn settings-btn--primary">Save Changes</button>
+            </section>
+
+            <!-- Security Card -->
+            <section class="settings-card">
+                <div class="settings-card-header">
+                    <h2>Security</h2>
+                </div>
+                <div class="form-group-settings">
+                    <label class="settings-label">Current Password</label>
+                    <input type="password" class="settings-input" placeholder="••••••••" />
+                </div>
+                <div class="form-group-settings">
+                    <label class="settings-label">New Password</label>
+                    <input type="password" class="settings-input" placeholder="••••••••" />
+                </div>
+                <div class="form-group-settings">
+                    <label class="settings-label">Confirm Password</label>
+                    <input type="password" class="settings-input" placeholder="••••••••" />
+                </div>
+                <button class="settings-btn settings-btn--outline">Update Password</button>
+            </section>
+
+            <!-- Café Details -->
+            <section class="settings-card">
+                <div class="settings-card-header">
+                    <h2>Café Details</h2>
+                </div>
+                <div class="form-group-settings">
+                    <label class="settings-label">Café Name</label>
+                    <input type="text" class="settings-input" value="Verso Cafe &amp; Co." />
+                </div>
+                <div class="form-group-settings">
+                    <label class="settings-label">Address</label>
+                    <input type="text" class="settings-input" placeholder="123 Brew Street" />
+                </div>
+                <div class="form-group-settings">
+                    <label class="settings-label">Contact Number</label>
+                    <input type="text" class="settings-input" placeholder="+63 9XX XXX XXXX" />
+                </div>
+                <div class="form-group-settings">
+                    <label class="settings-label">Currency</label>
+                    <select class="settings-input settings-select">
+                        <option value="PHP" selected>PHP — Philippine Peso</option>
+                        <option value="USD">USD — US Dollar</option>
+                        <option value="SGD">SGD — Singapore Dollar</option>
+                    </select>
+                </div>
+                <button class="settings-btn settings-btn--primary">Save Details</button>
+            </section>
+
+            <!-- Receipt / POS Preferences -->
+            <section class="settings-card">
+                <div class="settings-card-header">
+                    <h2>POS Preferences</h2>
+                </div>
+                <div class="settings-toggle-row">
+                    <div>
+                        <p class="settings-toggle-label">Print receipt automatically</p>
+                        <p class="settings-toggle-sub">Print a receipt after every transaction</p>
+                    </div>
+                    <label class="settings-toggle">
+                        <input type="checkbox" checked />
+                        <span class="settings-toggle-track"></span>
+                    </label>
+                </div>
+                <div class="settings-toggle-row">
+                    <div>
+                        <p class="settings-toggle-label">Show tax breakdown</p>
+                        <p class="settings-toggle-sub">Display VAT / tax lines on receipt</p>
+                    </div>
+                    <label class="settings-toggle">
+                        <input type="checkbox" />
+                        <span class="settings-toggle-track"></span>
+                    </label>
+                </div>
+                <div class="settings-toggle-row">
+                    <div>
+                        <p class="settings-toggle-label">Enable discount codes</p>
+                        <p class="settings-toggle-sub">Allow promo codes at checkout</p>
+                    </div>
+                    <label class="settings-toggle">
+                        <input type="checkbox" checked />
+                        <span class="settings-toggle-track"></span>
+                    </label>
+                </div>
+                <div class="form-group-settings" style="margin-top:1rem;">
+                    <label class="settings-label">Tax Rate (%)</label>
+                    <input type="number" class="settings-input" value="12" min="0" max="100" />
+                </div>
+                <button class="settings-btn settings-btn--primary">Save Preferences</button>
+            </section>
+
+            <!-- Danger Zone -->
+            <section class="settings-card settings-card--danger">
+                <div class="settings-card-header">
+                    <h2>Danger Zone</h2>
+                </div>
+                <p class="settings-danger-text">These actions are irreversible. Proceed with caution.</p>
+                <div class="settings-danger-actions">
+                    <button class="settings-btn settings-btn--ghost-danger">Clear All Transactions</button>
+                    <button class="settings-btn settings-btn--ghost-danger">Reset to Default Settings</button>
+                </div>
+            </section>
+
+        </div>
+    </main>
+</div>

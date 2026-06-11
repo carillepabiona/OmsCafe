@@ -1,0 +1,103 @@
+﻿@page "/session-ended"
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Session Ended — Verso Cafe</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: 'DM Sans', sans-serif;
+                background: #faf9f7;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 2rem;
+            }
+
+            .card {
+                background: white;
+                border-radius: 24px;
+                padding: 3rem 2rem;
+                max-width: 360px;
+                width: 100%;
+                text-align: center;
+                box-shadow: 0 4px 40px rgba(0,0,0,0.08);
+            }
+
+            .icon {
+                font-size: 3.5rem;
+                margin-bottom: 1.25rem;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+                font-weight: 600;
+                color: #1a1a1a;
+                margin-bottom: 0.5rem;
+            }
+
+            p {
+                font-size: 0.9rem;
+                color: #888;
+                line-height: 1.6;
+            }
+
+            .divider {
+                border: none;
+                border-top: 1px solid #f0ede9;
+                margin: 1.75rem 0;
+            }
+
+            .qr-hint {
+                background: #fff6f0;
+                border-radius: 14px;
+                padding: 1.1rem 1rem;
+                font-size: 0.85rem;
+                color: #E8611A;
+                font-weight: 500;
+                line-height: 1.5;
+            }
+
+                .qr-hint span {
+                    display: block;
+                    font-size: 1.8rem;
+                    margin-bottom: 0.4rem;
+                }
+
+            .brand {
+                margin-top: 2rem;
+                font-size: 0.75rem;
+                color: #ccc;
+                letter-spacing: 0.5px;
+            }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">👋</div>
+        <h1>Thanks for visiting!</h1>
+        <p>Your session has ended and your table has been freed for the next guest.</p>
+
+        <hr class="divider" />
+
+        <div class="qr-hint">
+            <span>📷</span>
+            Scan the QR code on your table to start a new session
+        </div>
+
+        <div class="brand">Verso Cafe · POS System</div>
+    </div>
+</body>
+</html>

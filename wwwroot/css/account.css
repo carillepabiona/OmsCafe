@@ -1,0 +1,139 @@
+﻿/* ── CSS Variables (main-content overrides) ─── */
+:root {
+    --cream: #FAFAFA;
+    --warm-50: #FAFAFA;
+    --warm-100: rgba(255,140,0,0.08);
+    --warm-200: rgba(255,140,0,0.18);
+    --border: rgba(255,140,0,0.12);
+    --border-md: rgba(255,140,0,0.20);
+    --border-strong: rgba(255,140,0,0.35);
+    --brown: #FF8C00;
+    --brown-dark: #e07b00;
+    --espresso: #1a1a1a;
+    --text: #333333;
+    --text-sub: #666666;
+    --text-mute: #aaaaaa;
+}
+
+/* ── Topbar ─────────────────────────────────── */
+.topbar {
+    background: #ffffff;
+    border-bottom: 1px solid rgba(255,140,0,0.15);
+}
+
+/* ── Topbar icon buttons ─────────────────────── */
+.icon-btn {
+    border: 1px solid rgba(255,140,0,0.20);
+    background: rgba(255,140,0,0.04);
+    color: #FF8C00;
+}
+
+    .icon-btn:hover {
+        background: rgba(255,140,0,0.12);
+        border-color: rgba(255,140,0,0.40);
+        color: #e07b00;
+    }
+
+/* ── Page background ─────────────────────────── */
+.content {
+    background: #FAFAFA;
+}
+
+/* ── Stat cards ──────────────────────────────── */
+.stat-card {
+    background: #ffffff;
+    border: 1px solid rgba(255,140,0,0.12);
+    border-top: 3px solid rgba(255,140,0,0.20);
+}
+
+/* Accent the "primary" stat card (add .stat-card-accent class to one) */
+.stat-card-accent {
+    border-top-color: #FF8C00;
+}
+
+.stat-card-label i {
+    color: #FF8C00;
+}
+
+/* ── Table card ──────────────────────────────── */
+.table-card {
+    background: #ffffff;
+    border: 1px solid rgba(255,140,0,0.12);
+}
+
+.table-card-header {
+    border-bottom: 1px solid rgba(255,140,0,0.10);
+}
+
+.data-table thead tr {
+    background: #FFF8F0;
+}
+
+.data-table th {
+    color: #b08060;
+    border-bottom: 1px solid rgba(255,140,0,0.10);
+}
+
+.data-table td {
+    border-bottom: 1px solid rgba(255,140,0,0.07);
+}
+
+.data-table tbody tr:hover td {
+    background: rgba(255,140,0,0.03);
+}
+
+/* ── Search box & filters ────────────────────── */
+.search-box {
+    background: #fafafa;
+    border: 1px solid rgba(255,140,0,0.15);
+}
+
+.filter-select {
+    background-color: #fafafa;
+    border: 1px solid rgba(255,140,0,0.15);
+}
+
+    .filter-select:focus {
+        border-color: #FF8C00;
+    }
+
+/* ── Pagination ──────────────────────────────── */
+.pagination-bar {
+    border-top: 1px solid rgba(255,140,0,0.10);
+}
+
+.pg-btn {
+    border: 1px solid rgba(255,140,0,0.15);
+    color: #888;
+}
+
+.pg-btn-active {
+    background: #FF8C00;
+    border-color: #FF8C00;
+    color: #fff;
+}
+
+/* ── Avatar colors ───────────────────────────── */
+.av-brown {
+    background: rgba(255,140,0,0.14);
+    color: #c06a00;
+}
+
+/* ── Role badges ─────────────────────────────── */
+.role-admin {
+    background: rgba(255,140,0,0.12);
+    color: #c06a00;
+}
+
+/* ── Cards ───────────────────────────────────── */
+.card-cafe {
+    background: #ffffff;
+    border: 1px solid rgba(255,140,0,0.12);
+}
+
+/* ── Action buttons ──────────────────────────── */
+.icon-btn {
+    border-color: rgba(255,140,0,0.18);
+    background: rgba(255,140,0,0.04);
+    color: #FF8C00;
+}

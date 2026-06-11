@@ -1,0 +1,172 @@
+﻿@{
+    var path = Context.Request.Path.ToString();
+    bool isAdmin = path.StartsWith("/Admin");
+    bool isCashier = path.StartsWith("/Cashier");
+    bool isLogin = path == "/" || path.Contains("Login");
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - WebPOSCafe</title>
+
+    <script type="importmap"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/WebPOSCafe.styles.css" asp-append-version="true" />
+</head>
+
+<body>
+
+    @if (!isLogin)
+    {
+        <div class="app-layout">
+
+            <!-- SIDEBAR -->
+            <aside class="sidebar">
+
+                <div class="sidebar-logo">
+                    <div class="sidebar-wordmark">
+                        <span class="sidebar-icon">☕</span>
+                        <span class="sidebar-name">Verso Cafe</span>
+                    </div>
+                    <div class="sidebar-sub">
+                        @if (isAdmin)
+                        {
+                            <span>Admin Panel</span>
+                        }
+                        @if (isCashier)
+                        {
+                            <span>Cashier Panel</span>
+                        }
+                    </div>
+                </div>
+
+                <nav class="nav-menu">
+
+                    @if (isAdmin)
+                    {
+                        <div class="nav-label">Management</div>
+                        <a asp-page="/Admin/AccountManagement" class="nav-item @(path.Contains("AccountManagement") ? "active" : "")">
+                            <i class="ti ti-users" aria-hidden="true"></i>
+                            Account Management
+                        </a>
+                        <a asp-page="/Admin/MenuManagement" class="nav-item @(path.Contains("MenuManagement") ? "active" : "")">
+                            <i class="ti ti-clipboard-list" aria-hidden="true"></i>
+                            Menu Management
+                        </a>
+                        <a asp-page="/Admin/Reports" class="nav-item @(path.Contains("Reports") ? "active" : "")">
+                            <i class="ti ti-chart-bar" aria-hidden="true"></i>
+                            Reports
+                        </a>
+                        <a asp-page="/Admin/GenerateQRCodes"
+                           class="nav-item @(path.Contains("GenerateQRCodes") ? "active" : "")">
+                            <i class="ti ti-qrcode" aria-hidden="true"></i>
+                            Generate QR Codes
+                        </a>
+                        <a asp-page="/Admin/Settings" class="nav-item @(path.Contains("Settings") ? "active" : "")">
+                            <i class="ti ti-settings" aria-hidden="true"></i>
+                            Settings
+                        </a>
+                    }
+
+                    @if (isCashier)
+                    {
+                        <div class="nav-label">Cashier</div>
+                        <a asp-page="/Cashier/Dashboard" class="nav-item @(path.Contains("Dashboard") ? "active" : "")">
+                            <i class="ti ti-home" aria-hidden="true"></i>
+                            Dashboard
+                        </a>
+                        <a asp-page="/Cashier/Orders" class="nav-item @(path.Contains("Orders") ? "active" : "")">
+                            <i class="ti ti-receipt" aria-hidden="true"></i>
+                            Orders
+                        </a>
+                        <a asp-page="/Cashier/Payments" class="nav-item @(path.Contains("Payments") ? "active" : "")">
+                            <i class="ti ti-credit-card" aria-hidden="true"></i>
+                            Payments
+                        </a>
+                        <a asp-page="/Cashier/Tables" class="nav-item @(path.Contains("Tables") ? "active" : "")">
+                            <i class="ti ti-armchair" aria-hidden="true"></i>
+                            Tables
+                        </a>
+                        <a asp-page="/Cashier/TakeOutQueue" class="nav-item @(path.Contains("TakeOutQueue") ? "active" : "")">
+                            <i class="ti ti-package" aria-hidden="true"></i>
+                            Take-Out Queue
+                        </a>
+                        <a asp-page="/Cashier/TransactionHistory" class="nav-item @(path.Contains("TransactionHistory") ? "active" : "")">
+                            <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
+                            Transaction History
+                        </a>
+                    }
+
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div class="user-chip">
+                        <div class="user-avatar">AD</div>
+                        <div class="user-info">
+                            <p class="user-name">Welcome, Admin</p>
+                            <span class="user-role">
+                                @if (isAdmin)
+                                {
+                                    <span>Administrator</span>
+                                }
+                                @if (isCashier)
+                                {
+                                    <span>Cashier</span>
+                                }
+                            </span>
+                        </div>
+                    </div>
+                    <a asp-page="/Index" class="logout-link">
+                        <i class="ti ti-logout" aria-hidden="true"></i>
+                        Sign out
+                    </a>
+                </div>
+
+            </aside>
+
+            <!-- MAIN CONTENT -->
+            <div class="main-content">
+
+                <header class="topbar">
+                    <div class="topbar-left">
+                        <h1 class="topbar-title">@ViewData["Title"]</h1>
+                        <p class="topbar-sub">@ViewData["Subtitle"]</p>
+                    </div>
+                    <div class="topbar-right">
+                        @await RenderSectionAsync("TopbarActions", required: false)
+                    </div>
+                </header>
+
+                <div class="content">
+                    @RenderBody()
+                </div>
+
+            </div>
+
+        </div>
+    }
+    else
+    {
+        <main class="login-main">
+            @RenderBody()
+        </main>
+    }
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+
+</body>
+</html>

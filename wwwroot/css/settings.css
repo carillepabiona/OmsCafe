@@ -1,0 +1,461 @@
+﻿/* ─────────────────────────────────────────
+   settings.css — Verso Cafe & Co.
+   Theme: white & orange modern
+   ───────────────────────────────────────── */
+
+:root {
+    --cream: #FAFAFA;
+    --warm-50: #FAFAFA;
+    --warm-100: rgba(255,140,0,0.08);
+    --warm-200: rgba(255,140,0,0.18);
+    --brown: #FF8C00;
+    --brown-dark: #e07b00;
+    --espresso: #1a1a1a;
+    --espresso-80: rgba(26,26,26,0.80);
+    --text: #333333;
+    --text-sub: #666666;
+    --text-mute: #aaaaaa;
+    --border: rgba(255,140,0,0.12);
+    --border-md: rgba(255,140,0,0.20);
+    --border-strong: rgba(255,140,0,0.35);
+    --white: #FFFFFF;
+    --success: #2D7A4F;
+    --success-bg: #EAF3DE;
+    --danger: #B53D2D;
+    --danger-bg: #FBF0EE;
+    --warning: #9A6E1C;
+    --warning-bg: #FAEEDA;
+    --info: #1C5C8A;
+    --info-bg: #E6F1FB;
+    --radius: 10px;
+    --radius-lg: 16px;
+    --shadow: 0 2px 12px rgba(255,140,0,0.06);
+    --shadow-lg: 0 8px 32px rgba(255,140,0,0.10);
+}
+
+/* ══════════════════════════════════════════
+   MAIN CONTENT
+══════════════════════════════════════════ */
+
+.settings-main {
+    flex: 1;
+    padding: 2rem 2.25rem;
+    max-width: 1400px;
+    overflow-y: auto;
+}
+
+.settings-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.settings-page-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--espresso);
+    margin: 0 0 2px;
+}
+
+.settings-page-sub {
+    font-size: 12px;
+    color: var(--text-sub);
+    margin: 0;
+}
+
+.settings-user-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--white);
+    border: 1px solid var(--border-md);
+    border-radius: var(--radius);
+    padding: 5px 10px;
+    box-shadow: var(--shadow);
+}
+
+.settings-user-badge-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--warm-200);
+    color: var(--brown);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.settings-user-badge-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--espresso);
+    margin: 0;
+    line-height: 1.3;
+}
+
+.settings-user-badge-role {
+    font-size: 10.5px;
+    color: var(--text-mute);
+    margin: 0;
+}
+
+/* ══════════════════════════════════════════
+   GRID
+══════════════════════════════════════════ */
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+}
+
+
+/* ══════════════════════════════════════════
+   CARDS
+══════════════════════════════════════════ */
+
+.settings-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.settings-card--profile {
+    grid-column: span 1;
+}
+
+.settings-card--danger {
+    grid-column: span 2;
+    border-color: rgba(181,61,45,0.18);
+    background: #fffcfc;
+}
+
+.settings-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+    .settings-card-header h2 {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--espresso);
+        margin: 0;
+    }
+
+
+/* ══════════════════════════════════════════
+   BADGES
+══════════════════════════════════════════ */
+
+.settings-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+}
+
+.settings-badge--active {
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+
+/* ══════════════════════════════════════════
+   PROFILE SECTION
+══════════════════════════════════════════ */
+
+.settings-profile-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.settings-avatar-lg {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--warm-200);
+    color: var(--brown);
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 2px solid var(--border-strong);
+}
+
+.settings-profile-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--espresso);
+    margin: 0 0 2px;
+}
+
+.settings-profile-role {
+    font-size: 12.5px;
+    color: var(--brown);
+    font-weight: 600;
+    margin: 0 0 2px;
+}
+
+.settings-profile-since {
+    font-size: 11.5px;
+    color: var(--text-mute);
+    margin: 0;
+}
+
+.settings-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.25rem 0;
+}
+
+
+/* ══════════════════════════════════════════
+   FORM ELEMENTS
+══════════════════════════════════════════ */
+
+.form-group-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.settings-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sub);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.settings-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 12px;
+    font-size: 14px;
+    color: var(--espresso);
+    background: var(--warm-50);
+    border: 1px solid var(--border-md);
+    border-radius: var(--radius);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+}
+
+    .settings-input:hover {
+        border-color: var(--border-strong);
+    }
+
+    .settings-input:focus {
+        border-color: var(--brown);
+        box-shadow: 0 0 0 3px rgba(255,140,0,0.10);
+    }
+
+.settings-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aaa' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+    cursor: pointer;
+}
+
+
+/* ══════════════════════════════════════════
+   BUTTONS
+══════════════════════════════════════════ */
+
+.settings-btn {
+    padding: 9px 18px;
+    font-size: 13.5px;
+    font-weight: 600;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    font-family: inherit;
+    align-self: flex-start;
+}
+
+    .settings-btn:active {
+        transform: scale(0.98);
+    }
+
+.settings-btn--primary {
+    background: var(--brown);
+    color: var(--white);
+    border-color: var(--brown);
+}
+
+    .settings-btn--primary:hover {
+        background: var(--brown-dark);
+        border-color: var(--brown-dark);
+    }
+
+.settings-btn--outline {
+    background: transparent;
+    color: var(--brown);
+    border-color: var(--border-strong);
+}
+
+    .settings-btn--outline:hover {
+        background: var(--warm-100);
+        border-color: var(--brown);
+    }
+
+.settings-btn--ghost-danger {
+    background: transparent;
+    color: var(--danger);
+    border-color: rgba(181,61,45,0.25);
+}
+
+    .settings-btn--ghost-danger:hover {
+        background: var(--danger-bg);
+        border-color: rgba(181,61,45,0.45);
+    }
+
+
+/* ══════════════════════════════════════════
+   TOGGLE SWITCHES
+══════════════════════════════════════════ */
+
+.settings-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+    .settings-toggle-row:last-of-type {
+        border-bottom: none;
+    }
+
+.settings-toggle-label {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--espresso);
+    margin: 0 0 2px;
+}
+
+.settings-toggle-sub {
+    font-size: 12px;
+    color: var(--text-mute);
+    margin: 0;
+}
+
+.settings-toggle {
+    position: relative;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+    .settings-toggle input {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+.settings-toggle-track {
+    display: block;
+    width: 40px;
+    height: 22px;
+    background: #e0e0e0;
+    border-radius: 11px;
+    transition: background 0.2s;
+    position: relative;
+}
+
+    .settings-toggle-track::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--white);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+        transition: transform 0.2s;
+    }
+
+.settings-toggle input:checked + .settings-toggle-track {
+    background: var(--brown);
+}
+
+    .settings-toggle input:checked + .settings-toggle-track::after {
+        transform: translateX(18px);
+    }
+
+
+/* ══════════════════════════════════════════
+   DANGER ZONE
+══════════════════════════════════════════ */
+
+.settings-danger-text {
+    font-size: 13.5px;
+    color: var(--danger);
+    margin: 0;
+}
+
+.settings-danger-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+
+/* ══════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+    .settings-main {
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 720px) {
+    .settings-layout {
+        flex-direction: column;
+    }
+
+    .settings-sidebar {
+        width: 100%;
+        min-height: auto;
+        height: auto;
+        position: static;
+    }
+
+    .settings-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-card--danger {
+        grid-column: span 1;
+    }
+
+    .settings-main {
+        padding: 1.25rem;
+    }
+
+    .settings-page-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+}

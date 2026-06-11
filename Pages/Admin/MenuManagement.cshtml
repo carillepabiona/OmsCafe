@@ -1,0 +1,1221 @@
+﻿@page
+@model OmsCafe.Pages.Admin.MenuManagementModel
+
+@{
+    ViewData["Title"] = "Menu Management";
+    ViewData["Subtitle"] = "Organize products, categories, add-ons & pricing";
+}
+
+@section TopbarActions {
+    <button class="btn-primary-cafe" onclick="openAddItemModal()">
+        <i class="ti ti-plus"></i> Add New Item
+    </button>
+    
+}
+
+<!-- ── Error Banner ──────────────────────────────────────────── -->
+@if (TempData["Error"] != null)
+{
+    <div class="error-banner" id="errorBanner">
+        <span>@TempData["Error"]</span>
+        <button class="close-btn" onclick="document.getElementById('errorBanner').remove()">×</button>
+    </div>
+}
+@if (TempData["Success"] != null)
+{
+    <div class="success-banner" id="successBanner">
+        <i class="ti ti-circle-check"></i> @TempData["Success"]
+    </div>
+}
+
+<head>
+    <link rel="stylesheet" href="~/css/menu-management.css" />
+</head>
+
+<!-- ── Tabs ──────────────────────────────────────────────────── -->
+<div class="mm-tabs">
+    <button class="mm-tab @(Model.ActiveTab == "items" ? "active" : "")" onclick="switchTab('items')">Menu Items</button>
+    <button class="mm-tab @(Model.ActiveTab == "categories" ? "active" : "")" onclick="switchTab('categories')">Categories</button>
+    <button class="mm-tab @(Model.ActiveTab == "customizations" ? "active" : "")" onclick="switchTab('customizations')">Customizations</button>
+    <button class="mm-tab @(Model.ActiveTab == "addons" ? "active" : "")" onclick="switchTab('addons')">Add-ons</button>
+    <button class="mm-tab @(Model.ActiveTab == "availability" ? "active" : "")" onclick="switchTab('availability')">Availability</button>
+    <button class="mm-tab @(Model.ActiveTab == "pricing" ? "active" : "")" onclick="switchTab('pricing')">Pricing</button>
+</div>
+
+<input type="hidden" id="activeTabInput" name="activeTab" value="@Model.ActiveTab" />
+
+<!-- ══════════════════════════════════════════════════════════════
+     TAB: MENU ITEMS
+══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-items" style="display:@(Model.ActiveTab == "items" ? "block" : "none")">
+
+    <div class="section-bar">
+        <div class="search-wrap">
+            <i class="ti ti-search search-ico"></i>
+            <input class="search-input" type="text" id="itemSearch" placeholder="Search items…"
+                   oninput="filterItems()" />
+        </div>
+        <select class="filter-select" id="catFilter" onchange="filterItems()">
+            <option value="">All Categories</option>
+            @foreach (var c in Model.Categories)
+            {
+                <option value="@c.CategoryName">@c.CategoryName</option>
+            }
+        </select>
+    </div>
+
+    <div class="items-grid" id="itemsGrid">
+        @foreach (var item in Model.MenuItems)
+        {
+            <div class="item-card" data-name="@item.Name.ToLower()" data-cat="@item.CategoryName">
+                <div class="item-thumb">
+                    @if (!string.IsNullOrEmpty(item.ImageBase64))
+                    {
+                        <img src="data:@item.ImageMimeType;base64,@item.ImageBase64" alt="@item.Name" />
+                    }
+                    else
+                    {
+                        <div class="item-thumb-placeholder">
+                            <i class="ti ti-photo" style="font-size:28px;color:var(--text-mute)"></i>
+                        </div>
+                    }
+                    <span class="avail-badge @(item.IsAvailable ? "avail-on" : "avail-off")">
+                        @(item.IsAvailable ? "Available" : "Unavailable")
+                    </span>
+                </div>
+                <div class="item-body">
+                    <div class="item-cat-label">@item.CategoryName</div>
+                    <h3 class="item-name">@item.Name</h3>
+                    <p class="item-desc">@item.Description</p>
+                    <div class="item-meta">
+                        <span class="meta-chip">
+                            <i class="ti ti-clock" style="font-size:12px"></i>
+                            @item.PreparationTime min
+                        </span>
+                        <span class="meta-price">₱@item.Price.ToString("0.00")</span>
+                    </div>
+                </div>
+                <div class="item-actions">
+                    <button class="icon-btn edit-btn" title="Edit"
+                            onclick="openEditItemModal(
+                        '@item.Id','@Html.Raw(item.Name.Replace("'", "\\'"))','@item.CategoryId',
+                        '@Html.Raw((item.Description ?? "").Replace("'", "\\'"))','@item.Price','@item.Cost',
+                        '@item.PreparationTime','@item.IsAvailable.ToString().ToLower()',
+                        '@item.AvailableFrom','@item.AvailableUntil',
+                        '@item.ImageBase64','@item.ImageMimeType')">
+                        <i class="ti ti-edit"></i>
+                    </button>
+                    <button class="icon-btn assign-btn" title="Assign Customizations & Add-ons"
+                            onclick="openAssignModal(
+                        '@item.Id',
+                        '@Html.Raw(item.Name.Replace("'", "\\\'"))',
+                        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(item.AssignedCustomizationIds)),
+                        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(item.AssignedAddonIds)))">
+                        <i class="ti ti-adjustments-alt"></i>
+                    </button>
+
+                    <form method="post" asp-page-handler="ToggleAvailability" style="display:inline">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@item.Id" />
+                        <input type="hidden" name="activeTab" value="items" />
+                        <button type="submit"
+                                class="icon-btn toggle-btn @(item.IsAvailable ? "toggle-on" : "toggle-off")"
+                                title="Toggle availability">
+                            <i class="ti ti-circle-check"></i>
+                        </button>
+                    </form>
+
+                    <form method="post" asp-page-handler="DeleteItem" style="display:inline"
+                          onsubmit="return confirm('Delete this item?')">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@item.Id" />
+                        <input type="hidden" name="activeTab" value="items" />
+                        <button type="submit" class="icon-btn delete-btn" title="Delete">
+                            <i class="ti ti-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        }
+
+        @if (!Model.MenuItems.Any())
+        {
+            <div class="empty-state">
+                <i class="ti ti-coffee"></i>
+                <p>No menu items yet. Click <strong>Add New Item</strong> to get started.</p>
+            </div>
+        }
+    </div>
+
+
+
+    <!-- ── Assign Customizations & Add-ons Modal ─────────────────── -->
+    <div class="cafe-modal-backdrop" id="assignModalBackdrop" style="display:none" onclick="closeModals()">
+        <div class="cafe-modal cafe-modal-lg" onclick="event.stopPropagation()">
+            <div class="cafe-modal-header">
+                <h2 id="assignModalTitle">Assign Options</h2>
+                <button class="cafe-modal-close" onclick="closeModals()">×</button>
+            </div>
+            <form method="post" asp-page-handler="SaveItemAssignments">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="itemId" id="assignItemId" />
+                <input type="hidden" name="activeTab" value="items" />
+                <div class="cafe-modal-body">
+
+                    <div class="assign-cols">
+                        <!-- CUSTOMIZATIONS -->
+                        <div class="assign-col">
+                            <div class="assign-col-header">
+                                <i class="ti ti-adjustments"></i>
+                                <span>Customizations</span>
+                            </div>
+                            <div class="assign-list" id="assignCustomizationsList">
+                                @foreach (var cust in Model.Customizations)
+                                {
+                                    <label class="assign-item">
+                                        <input type="checkbox"
+                                               name="customizationIds"
+                                               value="@cust.Id"
+                                               class="assign-checkbox cust-cb"
+                                               data-id="@cust.Id" />
+                                        <div class="assign-item-info">
+                                            <span class="assign-item-name">@cust.Name</span>
+                                            <span class="assign-item-sub">
+                                                @cust.Type •
+                                                @cust.Options.Count option(s)
+                                                @(cust.IsRequired ? "• Required" : "")
+                                            </span>
+                                        </div>
+                                        <span class="type-badge @(cust.Type == "Radio" ? "badge-radio" : "badge-check")">
+                                            @cust.Type
+                                        </span>
+                                    </label>
+                                }
+                                @if (!Model.Customizations.Any())
+                                {
+                                    <p class="assign-empty">No customizations. Add them in the Customizations tab.</p>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- ADD-ONS -->
+                        <div class="assign-col">
+                            <div class="assign-col-header">
+                                <i class="ti ti-plus-minus"></i>
+                                <span>Add-ons</span>
+                            </div>
+                            <div class="assign-list" id="assignAddonsList">
+                                @foreach (var addon in Model.Addons.Where(a => a.IsActive))
+                                {
+                                    <label class="assign-item">
+                                        <input type="checkbox"
+                                               name="addonIds"
+                                               value="@addon.Id"
+                                               class="assign-checkbox addon-cb"
+                                               data-id="@addon.Id" />
+                                        <div class="assign-item-info">
+                                            <span class="assign-item-name">@addon.Name</span>
+                                            <span class="assign-item-sub">@addon.Category</span>
+                                        </div>
+                                        <span class="addon-price-tag">+₱@addon.Price.ToString("0.00")</span>
+                                    </label>
+                                }
+                                @if (!Model.Addons.Any(a => a.IsActive))
+                                {
+                                    <p class="assign-empty">No active add-ons. Add them in the Add-ons tab.</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="cafe-modal-footer">
+                    <button type="button" class="btn-ghost-cafe" onclick="closeModals()">Cancel</button>
+                    <button type="submit" class="btn-primary-cafe">
+                        <i class="ti ti-device-floppy"></i> Save Assignments
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     TAB: CATEGORIES
+══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-categories" style="display:@(Model.ActiveTab == "categories" ? "block" : "none")">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+        <h2 style="font-size:15px;font-weight:700;color:#1a1a1a;margin:0;">Categories</h2>
+        <button onclick="openAddCategoryModal()"
+                style="padding:7px 14px;font-size:13px;font-weight:600;color:#fff;background:#FF8C00;border:none;border-radius:8px;cursor:pointer; margin-bottom:10px;">
+            + Add Category
+        </button>
+    </div>
+
+    <div class="list-container">
+        @foreach (var cat in Model.Categories)
+        {
+            <div class="list-row">
+                <div class="cat-dot" style="background:@cat.Color"></div>
+                <div class="list-info">
+                    <strong>@cat.CategoryName</strong>
+                    <span class="list-sub">@cat.Description</span>
+                </div>
+                <span class="count-badge">@cat.ItemCount items</span>
+                <span class="status-chip @(cat.IsActive ? "chip-active" : "chip-inactive")">
+                    @(cat.IsActive ? "Active" : "Inactive")
+                </span>
+                <div class="row-actions">
+                    <button class="txt-btn"
+                            onclick="openEditCategoryModal('@cat.Id','@Html.Raw(cat.CategoryName.Replace("'", "\\'"))','@Html.Raw((cat.Description ?? "").Replace("'", "\\'"))','@cat.Color','@cat.DisplayOrder','@cat.IsActive.ToString().ToLower()')">
+                        Edit
+                    </button>
+                    <!-- Trigger (replaces onsubmit confirm) -->
+                    <button type="button" class="txt-btn danger" onclick="openDeleteModal('@cat.Id')">Delete</button>
+
+                    <!-- Modal (place once near bottom of page body) -->
+                    <div id="deleteCategoryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:999;align-items:center;justify-content:center;">
+                        <div style="background:#fff;border-radius:12px;border:1px solid rgba(255,140,0,0.12);padding:1.5rem;width:340px;">
+                            <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:1rem;">
+                                <div style="width:36px;height:36px;border-radius:50%;background:#FBF0EE;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#B53D2D" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+                                </div>
+                                <div>
+                                    <p style="font-size:14px;font-weight:600;color:#1a1a1a;margin:0 0 4px;">Delete category?</p>
+                                    <p style="font-size:13px;color:#666;margin:0;line-height:1.5;">This will permanently delete this category and all its items. This action cannot be undone.</p>
+                                </div>
+                            </div>
+                            <div style="border-top:1px solid rgba(255,140,0,0.12);padding-top:1rem;display:flex;justify-content:flex-end;gap:8px;">
+                                <button type="button" onclick="closeDeleteModal()" style="padding:7px 14px;font-size:13px;font-weight:500;color:#666;background:transparent;border:1px solid rgba(0,0,0,0.15);border-radius:8px;cursor:pointer;">Cancel</button>
+                                <button type="button" onclick="submitDeleteForm()" style="padding:7px 14px;font-size:13px;font-weight:600;color:#fff;background:#B53D2D;border:none;border-radius:8px;cursor:pointer;">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (!Model.Categories.Any())
+        {
+            <div class="empty-state">
+                <i class="ti ti-tag"></i>
+                <p>No categories yet.</p>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Hidden form -->
+<form id="deleteCategoryForm" method="post" asp-page-handler="DeleteCategory">
+    @Html.AntiForgeryToken()
+    <input type="hidden" id="deleteCategoryId" name="id" />
+    <input type="hidden" name="activeTab" value="categories" />
+</form>
+
+<script>
+    const modal = document.getElementById('deleteCategoryModal');
+    function openDeleteModal(id) {
+      document.getElementById('deleteCategoryId').value = id;
+      modal.style.display = 'flex';
+    }
+    function closeDeleteModal() {
+      modal.style.display = 'none';
+    }
+    function submitDeleteForm() {
+      document.getElementById('deleteCategoryForm').submit();
+    }
+    modal.addEventListener('click', e => { if (e.target === modal) closeDeleteModal(); });
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     TAB: CUSTOMIZATIONS
+══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-customizations" style="display:@(Model.ActiveTab == "customizations" ? "block" : "none")">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+        <h2 style="font-size:15px;font-weight:700;color:#1a1a1a;margin:0;">Customizations</h2>
+        <button onclick="openAddCustomizationModal()"
+                style="padding:7px 14px;font-size:13px;font-weight:600;color:#fff;background:#FF8C00;border:none;border-radius:8px;cursor:pointer; margin-bottom:10px;">
+            + Add Customization
+        </button>
+    </div>
+
+    <div class="card-grid">
+        @foreach (var cust in Model.Customizations)
+        {
+            <div class="cust-card">
+                <div class="cust-card-header">
+                    <span class="cust-name">@cust.Name</span>
+                    <span class="type-badge @(cust.Type == "Radio" ? "badge-radio" : "badge-check")">@cust.Type</span>
+                </div>
+                <div class="cust-options">
+                    @foreach (var opt in cust.Options.OrderBy(o => o.DisplayOrder))
+                    {
+                        <div class="opt-row">
+                            <span class="opt-dot @(cust.Type == "Radio" ? "dot-radio" : "dot-check")"></span>
+                            <span class="opt-label-text">@opt.OptionLabel</span>
+                            <span class="opt-price @(opt.PriceModifier > 0 ? "price-positive" : "price-zero")">
+                                +₱@opt.PriceModifier.ToString("0.00")
+                            </span>
+                            @if (opt.IsDefault)
+                            {
+                                <span class="opt-default-badge">default</span>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="cust-card-footer">
+                    <button class="txt-btn"
+                            onclick='openEditCustomizationModal(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(cust, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })))'>
+                        Edit
+                    </button>
+                    <!-- Trigger -->
+                    <button type="button" class="txt-btn danger" onclick="openDeleteCustomizationModal('@cust.Id')">Delete</button>
+
+                    <!-- Modal -->
+                    <div id="deleteCustomizationModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:999;align-items:center;justify-content:center;">
+                        <div style="background:#fff;border-radius:12px;border:1px solid rgba(255,140,0,0.12);padding:1.5rem;width:340px;">
+                            <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:1rem;">
+                                <div style="width:36px;height:36px;border-radius:50%;background:#FBF0EE;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#B53D2D" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+                                </div>
+                                <div>
+                                    <p style="font-size:14px;font-weight:600;color:#1a1a1a;margin:0 0 4px;">Delete customization?</p>
+                                    <p style="font-size:13px;color:#666;margin:0;line-height:1.5;">This will permanently delete this customization. This action cannot be undone.</p>
+                                </div>
+                            </div>
+                            <div style="border-top:1px solid rgba(255,140,0,0.12);padding-top:1rem;display:flex;justify-content:flex-end;gap:8px;">
+                                <button type="button" onclick="closeDeleteCustomizationModal()" style="padding:7px 14px;font-size:13px;font-weight:500;color:#666;background:transparent;border:1px solid rgba(0,0,0,0.15);border-radius:8px;cursor:pointer;">Cancel</button>
+                                <button type="button" onclick="submitDeleteCustomizationForm()" style="padding:7px 14px;font-size:13px;font-weight:600;color:#fff;background:#B53D2D;border:none;border-radius:8px;cursor:pointer;">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden form -->
+                    <form id="deleteCustomizationForm" method="post" asp-page-handler="DeleteCustomization">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" id="deleteCustomizationId" name="id" />
+                        <input type="hidden" name="activeTab" value="customizations" />
+                    </form>
+
+                    <script>
+                                        const custModal = document.getElementById('deleteCustomizationModal');
+                                        function openDeleteCustomizationModal(id) {
+                                          document.getElementById('deleteCustomizationId').value = id;
+                                          custModal.style.display = 'flex';
+                                        }
+                                        function closeDeleteCustomizationModal() {
+                                          custModal.style.display = 'none';
+                                        }
+                                        function submitDeleteCustomizationForm() {
+                                          document.getElementById('deleteCustomizationForm').submit();
+                                        }
+                                        custModal.addEventListener('click', e => { if (e.target === custModal) closeDeleteCustomizationModal(); });
+                    </script>
+                </div>
+            </div>
+        }
+
+        @if (!Model.Customizations.Any())
+        {
+            <div class="empty-state">
+                <i class="ti ti-adjustments"></i>
+                <p>No customizations yet.</p>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     TAB: ADD-ONS
+══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-addons" style="display:@(Model.ActiveTab == "addons" ? "block" : "none")">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+        <h2 style="font-size:15px;font-weight:700;color:#1a1a1a;margin:0;">Add-ons</h2>
+        <button onclick="openAddAddonModal()"
+                style="padding:7px 14px;font-size:13px;font-weight:600;color:#fff;background:#FF8C00;border:none;border-radius:8px;cursor:pointer; margin-bottom:10px;">
+            + Add Add-on
+        </button>
+    </div>
+
+    <div class="list-container">
+        @foreach (var addon in Model.Addons)
+        {
+            <div class="list-row">
+                <span class="status-dot-sm @(addon.IsActive ? "dot-on" : "dot-off")"></span>
+                <div class="list-info">
+                    <strong>@addon.Name</strong>
+                    <span class="list-sub">@addon.Category</span>
+                </div>
+                <span class="addon-price-tag">+₱@addon.Price.ToString("0.00")</span>
+                <div class="row-actions">
+                    <button class="txt-btn"
+                            onclick="openEditAddonModal('@addon.Id','@Html.Raw(addon.Name.Replace("'", "\\'"))','@Html.Raw((addon.Category ?? "").Replace("'", "\\'"))','@addon.Price','@addon.IsActive.ToString().ToLower()')">
+                        Edit
+                    </button>
+                    <!-- Trigger -->
+                    <button type="button" class="txt-btn danger" onclick="openDeleteAddonModal('@addon.Id')">Delete</button>
+
+                    <!-- Modal -->
+                    <div id="deleteAddonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:999;align-items:center;justify-content:center;">
+                        <div style="background:#fff;border-radius:12px;border:1px solid rgba(255,140,0,0.12);padding:1.5rem;width:340px;">
+                            <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:1rem;">
+                                <div style="width:36px;height:36px;border-radius:50%;background:#FBF0EE;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#B53D2D" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+                                </div>
+                                <div>
+                                    <p style="font-size:14px;font-weight:600;color:#1a1a1a;margin:0 0 4px;">Delete add-on?</p>
+                                    <p style="font-size:13px;color:#666;margin:0;line-height:1.5;">This will permanently delete this add-on. This action cannot be undone.</p>
+                                </div>
+                            </div>
+                            <div style="border-top:1px solid rgba(255,140,0,0.12);padding-top:1rem;display:flex;justify-content:flex-end;gap:8px;">
+                                <button type="button" onclick="closeDeleteAddonModal()" style="padding:7px 14px;font-size:13px;font-weight:500;color:#666;background:transparent;border:1px solid rgba(0,0,0,0.15);border-radius:8px;cursor:pointer;">Cancel</button>
+                                <button type="button" onclick="submitDeleteAddonForm()" style="padding:7px 14px;font-size:13px;font-weight:600;color:#fff;background:#B53D2D;border:none;border-radius:8px;cursor:pointer;">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden form -->
+                    <form id="deleteAddonForm" method="post" asp-page-handler="DeleteAddon">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" id="deleteAddonId" name="id" />
+                        <input type="hidden" name="activeTab" value="addons" />
+                    </form>
+
+                    <script>
+                                        const addonModal = document.getElementById('deleteAddonModal');
+                                        function openDeleteAddonModal(id) {
+                                          document.getElementById('deleteAddonId').value = id;
+                                          addonModal.style.display = 'flex';
+                                        }
+                                        function closeDeleteAddonModal() {
+                                          addonModal.style.display = 'none';
+                                        }
+                                        function submitDeleteAddonForm() {
+                                          document.getElementById('deleteAddonForm').submit();
+                                        }
+                                        addonModal.addEventListener('click', e => { if (e.target === addonModal) closeDeleteAddonModal(); });
+                    </script>
+                </div>
+            </div>
+        }
+
+        @if (!Model.Addons.Any())
+        {
+            <div class="empty-state">
+                <i class="ti ti-plus-minus"></i>
+                <p>No add-ons yet.</p>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     TAB: AVAILABILITY
+══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-availability" style="display:@(Model.ActiveTab == "availability" ? "block" : "none")">
+
+    <div class="section-bar">
+        <h2 class="section-title">Availability Schedule</h2>
+    </div>
+
+    <div class="avail-grid">
+        @foreach (var item in Model.MenuItems)
+        {
+            <div class="avail-card">
+                <div class="avail-header">
+                    <span class="avail-name">@item.Name</span>
+                    <form method="post" asp-page-handler="ToggleAvailability">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@item.Id" />
+                        <input type="hidden" name="activeTab" value="availability" />
+                        <label class="toggle-switch">
+                            <input type="checkbox" @(item.IsAvailable ? "checked" : "")
+                                   onchange="this.form.submit()" name="dummy" />
+                            <span class="toggle-track"></span>
+                        </label>
+                    </form>
+                </div>
+                <form method="post" asp-page-handler="SaveAvailabilityTime">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@item.Id" />
+                    <input type="hidden" name="activeTab" value="availability" />
+                    <div class="avail-times">
+                        <div class="time-row">
+                            <label>From</label>
+                            <input type="time" class="time-input" name="availableFrom"
+                                   value="@item.AvailableFrom" onchange="this.form.submit()" />
+                        </div>
+                        <div class="time-row">
+                            <label>Until</label>
+                            <input type="time" class="time-input" name="availableUntil"
+                                   value="@item.AvailableUntil" onchange="this.form.submit()" />
+                        </div>
+                    </div>
+                </form>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     TAB: PRICING
+══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-pricing" style="display:@(Model.ActiveTab == "pricing" ? "block" : "none")">
+
+    <div class="section-bar">
+        <h2 class="section-title">Pricing Management</h2>
+    </div>
+
+    <div class="table-wrap">
+        <table class="pricing-table">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Category</th>
+                    <th>Price (₱)</th>
+                    <th>Cost (₱)</th>
+                    <th>Margin</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.MenuItems)
+                {
+                    var margin = item.Price > 0
+                        ? (item.Price - item.Cost) / item.Price * 100
+                        : 0;
+                    var marginClass = margin >= 50 ? "margin-high" : margin >= 30 ? "margin-mid" : "margin-low";
+
+                    <tr>
+                        <td><strong>@item.Name</strong></td>
+                        <td class="muted">@item.CategoryName</td>
+                        <td>₱@item.Price.ToString("0.00")</td>
+                        <td class="muted">₱@item.Cost.ToString("0.00")</td>
+                        <td>
+                            <span class="margin-chip @marginClass">@margin.ToString("0")%</span>
+                        </td>
+                        <td>
+                            <button class="txt-btn"
+                                    onclick="openPricingModal('@item.Id','@item.Name','@item.Price','@item.Cost')">
+                                Edit
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODALS
+══════════════════════════════════════════════════════════════ -->
+<!-- ── Add/Edit Menu Item Modal ──────────────────────────────── -->
+<div class="modal-backdrop" id="itemModalBackdrop" style="display:none" onclick="closeModals()">
+    <div class="modal" onclick="event.stopPropagation()">
+        <!-- After (new): -->
+        <div class="modal-hdr">
+            <div class="modal-hdr-icon">
+                <i class="ti ti-coffee"></i>
+            </div>
+            <div class="modal-hdr-text">
+                <h2 id="itemModalTitle">Add New Item</h2>
+                <div class="modal-hdr-sub">Fill in the details below</div>
+            </div>
+            <button class="close-btn" onclick="closeModals()">×</button>
+        </div>
+        <form method="post" id="itemForm" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="activeTab" value="items" />
+            <input type="hidden" name="Id" id="itemId" />
+            <div class="modal-body">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Name *</label>
+                        <input class="form-control-cafe" name="Name" id="itemName" required
+                               placeholder="e.g., Iced Caramel Latte" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category *</label>
+                        <select class="form-control-cafe" name="CategoryId" id="itemCategoryId" required>
+                            <option value="">Select…</option>
+                            @foreach (var c in Model.Categories)
+                            {
+                                <option value="@c.Id">@c.CategoryName</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Price (₱) *</label>
+                        <input class="form-control-cafe" type="number" name="Price" id="itemPrice"
+                               step="0.01" min="0" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Cost (₱)</label>
+                        <input class="form-control-cafe" type="number" name="Cost" id="itemCost"
+                               step="0.01" min="0" value="0" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control-cafe" name="Description" id="itemDescription" rows="3"
+                              placeholder="Short description…"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Prep Time (min)</label>
+                        <input class="form-control-cafe" type="number" name="PreparationTime"
+                               id="itemPrepTime" value="5" min="1" />
+                    </div>
+                    <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px">
+                        <label class="toggle-switch" style="gap:10px;cursor:pointer">
+                            <input type="checkbox" name="IsAvailable" id="itemIsAvailable" value="true" checked />
+                            <span class="toggle-track"></span>
+                            <span style="font-size:13px">Available</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Available From</label>
+                        <input class="form-control-cafe" type="time" name="AvailableFrom"
+                               id="itemAvailFrom" value="06:00" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Available Until</label>
+                        <input class="form-control-cafe" type="time" name="AvailableUntil"
+                               id="itemAvailUntil" value="22:00" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Product Image</label>
+                    <input type="file" class="form-control-cafe" name="ImageFile"
+                           id="itemImageFile" accept="image/*" onchange="previewImage(this)" />
+                    <img id="itemImagePreview" class="img-preview" style="display:none" />
+                    <input type="hidden" name="ExistingImageBase64" id="itemExistingImage" />
+                    <input type="hidden" name="ExistingImageMimeType" id="itemExistingMime" />
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-ghost-cafe" onclick="closeModals()">Cancel</button>
+                <button type="submit" class="btn-primary-cafe" id="itemSaveBtn">Save Item</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Add/Edit Category Modal ───────────────────────────────── -->
+<div class="modal-backdrop" id="categoryModalBackdrop" style="display:none" onclick="closeModals()">
+    <div class="modal modal-sm" onclick="event.stopPropagation()">
+        <div class="modal-hdr">
+            <h2 id="categoryModalTitle">Add Category</h2>
+        </div>
+        <form method="post" id="categoryForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" id="catId" />
+            <input type="hidden" name="activeTab" value="categories" />
+            <div class="modal-body">
+
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input class="form-control-cafe" name="CategoryName" id="catName"
+                           required placeholder="e.g., Coffee" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input class="form-control-cafe" name="Description" id="catDesc" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Color</label>
+                        <input class="form-control-cafe" type="color" name="Color"
+                               id="catColor" value="#8B4513" style="height:42px;padding:4px" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Display Order</label>
+                        <input class="form-control-cafe" type="number" name="DisplayOrder"
+                               id="catOrder" value="0" min="0" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="toggle-switch" style="gap:10px;cursor:pointer">
+                        <input type="checkbox" name="IsActive" id="catIsActive" value="true" checked />
+                        <span class="toggle-track"></span>
+                        <span style="font-size:13px">Active</span>
+                    </label>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-ghost-cafe" onclick="closeModals()">Cancel</button>
+                <button type="submit" class="btn-primary-cafe">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Add/Edit Customization Modal ─────────────────────────── -->
+<!-- Customization Modal -->
+<div class="cafe-modal-backdrop" id="customizationModalBackdrop" style="display:none" onclick="closeModals()">
+    <div class="cafe-modal cafe-modal-lg" onclick="event.stopPropagation()">
+        <div class="cafe-modal-header">
+            <h2 id="custModalTitle">Add Customization</h2>
+            <button class="cafe-modal-close" onclick="closeModals()">×</button>
+        </div>
+
+        <form method="post" id="custForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" id="custId" />
+            <input type="hidden" name="activeTab" value="customizations" />
+            <div class="cafe-modal-body">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Name *</label>
+                        <input class="form-control-cafe" name="Name" id="custName"
+                               required placeholder="e.g., Sugar Level" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Type</label>
+                        <select class="form-control-cafe" name="Type" id="custType">
+                            <option value="Radio">Radio (single)</option>
+                            <option value="Checkbox">Checkbox (multiple)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="toggle-switch" style="gap:10px;cursor:pointer">
+                        <input type="checkbox" name="IsRequired" id="custIsRequired" value="true" />
+                        <span class="toggle-track"></span>
+                        <span style="font-size:13px">Required</span>
+                    </label>
+                </div>
+
+                <div class="opts-section">
+                    <div class="opts-hdr">
+                        <span>Options</span>
+                        <button type="button" class="txt-btn" onclick="addCustOption()">+ Add Option</button>
+                    </div>
+                    <div id="custOptionsContainer"></div>
+                </div>
+
+            </div>
+            <div class="cafe-modal-footer">
+                <button type="button" class="btn-ghost-cafe" onclick="closeModals()">Cancel</button>
+                <button type="submit" class="btn-primary-cafe" id="custSaveBtn">
+                    <i class="ti ti-device-floppy"></i> <span id="custSaveBtnLabel">Save</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Add/Edit Addon Modal ──────────────────────────────────── -->
+<div class="cafe-modal-backdrop" id="addonModalBackdrop" style="display:none" onclick="closeModals()">
+    <div class="cafe-modal cafe-modal-sm" onclick="event.stopPropagation()">
+        <div class="cafe-modal-header">
+            <h2 id="addonModalTitle">Add Add-on</h2>
+            <button class="cafe-modal-close" onclick="closeModals()">×</button>
+        </div>
+        <form method="post" id="addonForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" id="addonId" />
+            <input type="hidden" name="activeTab" value="addons" />
+            <div class="cafe-modal-body">
+
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input class="form-control-cafe" name="Name" id="addonName"
+                           required placeholder="e.g., Extra Shot" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category</label>
+                    <input class="form-control-cafe" name="Category" id="addonCategory"
+                           placeholder="e.g., Toppings" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Price (₱) *</label>
+                        <input class="form-control-cafe" type="number" name="Price"
+                               id="addonPrice" step="0.01" min="0" required />
+                    </div>
+                    <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px">
+                        <label class="toggle-switch" style="gap:10px;cursor:pointer">
+                            <input type="checkbox" name="IsActive" id="addonIsActive" value="true" checked />
+                            <span class="toggle-track"></span>
+                            <span style="font-size:13px">Active</span>
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+            <div class="cafe-modal-footer">
+                <button type="button" class="btn-ghost-cafe" onclick="closeModals()">Cancel</button>
+                <button type="submit" class="btn-primary-cafe">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Pricing Modal ─────────────────────────────────────────── -->
+<div class="cafe-modal-backdrop" id="pricingModalBackdrop" style="display:none" onclick="closeModals()">
+    <div class="cafe-modal cafe-modal-sm" onclick="event.stopPropagation()">
+        <div class="cafe-modal-header">
+            <h2 id="pricingModalTitle">Update Pricing</h2>
+            <button class="cafe-modal-close" onclick="closeModals()">×</button>
+        </div>
+        <form method="post" asp-page-handler="SavePricing">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" id="pricingId" />
+            <input type="hidden" name="activeTab" value="pricing" />
+            <div class="cafe-modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Selling Price (₱)</label>
+                        <input class="form-control-cafe" type="number" name="Price"
+                               id="pricingPrice" step="0.01" min="0" oninput="updateMarginPreview()" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Cost (₱)</label>
+                        <input class="form-control-cafe" type="number" name="Cost"
+                               id="pricingCost" step="0.01" min="0" oninput="updateMarginPreview()" />
+                    </div>
+                </div>
+                <div class="margin-preview-card">
+                    <div>
+                        <div class="margin-label">Gross margin</div>
+                        <div class="margin-val" id="marginPreview">0.0%</div>
+                    </div>
+                    <div style="text-align:right">
+                        <div class="margin-label">Profit</div>
+                        <div class="profit-val" id="profitPreview">₱0.00</div>
+                    </div>
+                </div>
+            </div>
+            <div class="cafe-modal-footer">
+                <button type="button" class="btn-ghost-cafe" onclick="closeModals()">Cancel</button>
+                <button type="submit" class="btn-primary-cafe">Update Price</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+@section Scripts {
+<script>
+
+    // ── Tab switching ──────────────────────────────────────────────────────────
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('.mm-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById('panel-' + tab).style.display = 'block';
+        // Match tab button by its text content slug
+        document.querySelectorAll('.mm-tab').forEach(t => {
+            const slug = t.textContent.trim().toLowerCase().replace(/[^a-z]/g, '');
+            if (slug.startsWith(tab.replace(/[^a-z]/g, '').substring(0, 4)))
+                t.classList.add('active');
+        });
+        document.getElementById('activeTabInput').value = tab;
+    }
+
+    // ── Item search / filter ───────────────────────────────────────────────────
+    function filterItems() {
+        const q   = document.getElementById('itemSearch').value.toLowerCase();
+        const cat = document.getElementById('catFilter').value.toLowerCase();
+        document.querySelectorAll('#itemsGrid .item-card').forEach(card => {
+            const name = card.dataset.name || '';
+            const c    = (card.dataset.cat || '').toLowerCase();
+            card.style.display =
+                (!q || name.includes(q)) && (!cat || c === cat) ? '' : 'none';
+        });
+    }
+
+    // ── SINGLE closeModals (fixes duplicate declaration bug) ───────────────────
+    function closeModals() {
+        [
+            'itemModalBackdrop',
+            'categoryModalBackdrop',
+            'customizationModalBackdrop',
+            'addonModalBackdrop',
+            'pricingModalBackdrop',
+            'assignModalBackdrop'
+        ].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
+
+    // ── Image preview ──────────────────────────────────────────────────────────
+    function previewImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const preview = document.getElementById('itemImagePreview');
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    // ── Item modal ─────────────────────────────────────────────────────────────
+    function openAddItemModal() {
+        document.getElementById('itemModalTitle').textContent = 'Add New Item';
+        document.getElementById('itemForm').action = '@Url.Page("MenuManagement", "SaveItem")';
+        document.getElementById('itemId').value            = '';
+        document.getElementById('itemName').value          = '';
+        document.getElementById('itemCategoryId').value    = '';
+        document.getElementById('itemPrice').value         = '';
+        document.getElementById('itemCost').value          = '0';
+        document.getElementById('itemDescription').value   = '';
+        document.getElementById('itemPrepTime').value      = '5';
+        document.getElementById('itemIsAvailable').checked = true;
+        document.getElementById('itemAvailFrom').value     = '06:00';
+        document.getElementById('itemAvailUntil').value    = '22:00';
+        document.getElementById('itemImagePreview').style.display = 'none';
+        document.getElementById('itemExistingImage').value = '';
+        document.getElementById('itemExistingMime').value  = '';
+        document.getElementById('itemImageFile').value     = '';
+        document.getElementById('itemModalBackdrop').style.display = 'flex';
+    }
+
+    function openEditItemModal(id, name, categoryId, desc, price, cost, prepTime, isAvail, from, until, imgB64, imgMime) {
+        document.getElementById('itemModalTitle').textContent = 'Edit Item';
+        document.getElementById('itemForm').action = '@Url.Page("MenuManagement", "SaveItem")';
+        document.getElementById('itemId').value            = id;
+        document.getElementById('itemName').value          = name;
+        document.getElementById('itemCategoryId').value    = categoryId;
+        document.getElementById('itemDescription').value   = desc;
+        document.getElementById('itemPrice').value         = price;
+        document.getElementById('itemCost').value          = cost;
+        document.getElementById('itemPrepTime').value      = prepTime;
+        document.getElementById('itemIsAvailable').checked = isAvail === 'true';
+        document.getElementById('itemAvailFrom').value     = from;
+        document.getElementById('itemAvailUntil').value    = until;
+        document.getElementById('itemExistingImage').value = imgB64  || '';
+        document.getElementById('itemExistingMime').value  = imgMime || '';
+        document.getElementById('itemImageFile').value     = '';
+        const preview = document.getElementById('itemImagePreview');
+        if (imgB64) {
+            preview.src = 'data:' + imgMime + ';base64,' + imgB64;
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+        }
+        document.getElementById('itemModalBackdrop').style.display = 'flex';
+    }
+
+    // ── Assign modal ───────────────────────────────────────────────────────────
+    // assignedCustIds and assignedAddonIds are plain JS arrays passed from Razor.
+    // The checkbox data-id attributes match the GUID strings from the server.
+    function openAssignModal(itemId, itemName, assignedCustIds, assignedAddonIds) {
+        document.getElementById('assignModalTitle').textContent = 'Assign Options — ' + itemName;
+        document.getElementById('assignItemId').value = itemId;
+
+        // Always reset then re-check so repeated opens reflect current assignments
+        document.querySelectorAll('.cust-cb').forEach(cb => {
+            cb.checked = assignedCustIds.includes(cb.dataset.id);
+            // Visually highlight the parent label
+            cb.closest('label').classList.toggle('assign-item-checked', cb.checked);
+        });
+        document.querySelectorAll('.addon-cb').forEach(cb => {
+            cb.checked = assignedAddonIds.includes(cb.dataset.id);
+            cb.closest('label').classList.toggle('assign-item-checked', cb.checked);
+        });
+
+        document.getElementById('assignModalBackdrop').style.display = 'flex';
+    }
+
+    // Live highlight as user checks/unchecks inside the assign modal
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('assign-checkbox')) {
+            e.target.closest('label').classList.toggle('assign-item-checked', e.target.checked);
+        }
+    });
+
+    // ── Category modal ─────────────────────────────────────────────────────────
+    function openAddCategoryModal() {
+        document.getElementById('categoryModalTitle').textContent = 'Add Category';
+        document.getElementById('categoryForm').action = '@Url.Page("MenuManagement", "SaveCategory")';
+        document.getElementById('catId').value      = '';
+        document.getElementById('catName').value    = '';
+        document.getElementById('catDesc').value    = '';
+        document.getElementById('catColor').value   = '#8B4513';
+        document.getElementById('catOrder').value   = '0';
+        document.getElementById('catIsActive').checked = true;
+        document.getElementById('categoryModalBackdrop').style.display = 'flex';
+    }
+
+    function openEditCategoryModal(id, name, desc, color, order, isActive) {
+        document.getElementById('categoryModalTitle').textContent = 'Edit Category';
+        document.getElementById('categoryForm').action = '@Url.Page("MenuManagement", "SaveCategory")';
+        document.getElementById('catId').value      = id;
+        document.getElementById('catName').value    = name;
+        document.getElementById('catDesc').value    = desc;
+        document.getElementById('catColor').value   = color;
+        document.getElementById('catOrder').value   = order;
+        document.getElementById('catIsActive').checked = isActive === 'true';
+        document.getElementById('categoryModalBackdrop').style.display = 'flex';
+    }
+
+    // ── Customization modal ────────────────────────────────────────────────────
+    // optionIndex tracks the form array index; reset on every modal open.
+    let optionIndex = 0;
+
+        function openAddCustomizationModal() {
+            document.getElementById('custModalTitle').textContent = 'Add Customization';
+            document.getElementById('custForm').action = '@Url.Page("MenuManagement", "SaveCustomization")';
+            document.getElementById('custId').value           = '';
+            document.getElementById('custName').value         = '';
+            document.getElementById('custType').value         = 'Radio';
+            document.getElementById('custIsRequired').checked = false;
+            document.getElementById('custOptionsContainer').innerHTML = '';
+            optionIndex = 0;
+            // Label for adding
+            document.getElementById('custSaveBtnLabel').textContent = 'Save Customization';
+            document.getElementById('customizationModalBackdrop').style.display = 'flex';
+        }
+
+        function openEditCustomizationModal(cust) {
+            document.getElementById('custModalTitle').textContent = 'Edit Customization';
+            document.getElementById('custForm').action = '@Url.Page("MenuManagement", "SaveCustomization")';
+            document.getElementById('custId').value           = cust.id;
+            document.getElementById('custName').value         = cust.name;
+            document.getElementById('custType').value         = cust.type;
+            document.getElementById('custIsRequired').checked = cust.isRequired;
+            const container = document.getElementById('custOptionsContainer');
+            container.innerHTML = '';
+            optionIndex = 0;
+            (cust.options || []).forEach(opt => addCustOptionRow(opt));
+            // Label for editing
+            document.getElementById('custSaveBtnLabel').textContent = 'Save Changes';
+            document.getElementById('customizationModalBackdrop').style.display = 'flex';
+        }
+
+    function addCustOption() {
+        addCustOptionRow(null);
+    }
+
+    // Each row: label, price modifier (always visible), default toggle, remove
+    function addCustOptionRow(opt) {
+        const idx       = optionIndex++;
+        const container = document.getElementById('custOptionsContainer');
+        const div       = document.createElement('div');
+        div.className   = 'opt-edit-row';
+
+        // Use opt.optionLabel (C# serializes OptionLabel → optionLabel)
+        const label         = opt?.optionLabel ?? opt?.label ?? '';
+        const priceModifier = opt?.priceModifier ?? 0;
+        const isDefault     = opt?.isDefault     ?? false;
+        const existingId    = opt?.id            ?? '';
+
+        div.innerHTML = `
+            <input type="hidden"
+                   name="Options[${idx}].Id"
+                   value="${existingId}" />
+
+            <input class="form-control-cafe"
+                   name="Options[${idx}].OptionLabel"
+                   placeholder="Option label (e.g. Large)"
+                   value="${escHtml(label)}"
+                   required />
+
+            <div class="opt-price-wrap">
+                <span class="opt-price-prefix">+₱</span>
+                <input class="form-control-cafe short"
+                       type="number"
+                       step="0.01"
+                       min="0"
+                       name="Options[${idx}].PriceModifier"
+                       placeholder="0.00"
+                       value="${parseFloat(priceModifier).toFixed(2)}" />
+            </div>
+
+            <label class="toggle-switch" style="gap:6px;white-space:nowrap;font-size:12px;cursor:pointer">
+                <input type="checkbox"
+                       name="Options[${idx}].IsDefault"
+                       value="true"
+                       ${isDefault ? 'checked' : ''} />
+                <span class="toggle-track"></span>
+                <span>Default</span>
+            </label>
+
+            <button type="button" class="opt-remove" title="Remove option"
+                    onclick="this.closest('.opt-edit-row').remove()">×</button>`;
+
+        container.appendChild(div);
+    }
+
+    // ── Add-on modal ───────────────────────────────────────────────────────────
+    function openAddAddonModal() {
+        document.getElementById('addonModalTitle').textContent = 'Add Add-on';
+        document.getElementById('addonForm').action = '@Url.Page("MenuManagement", "SaveAddon")';
+        document.getElementById('addonId').value       = '';
+        document.getElementById('addonName').value     = '';
+        document.getElementById('addonCategory').value = '';
+        document.getElementById('addonPrice').value    = '';
+        document.getElementById('addonIsActive').checked = true;
+        document.getElementById('addonModalBackdrop').style.display = 'flex';
+    }
+
+    function openEditAddonModal(id, name, category, price, isActive) {
+        document.getElementById('addonModalTitle').textContent = 'Edit Add-on';
+        document.getElementById('addonForm').action = '@Url.Page("MenuManagement", "SaveAddon")';
+        document.getElementById('addonId').value       = id;
+        document.getElementById('addonName').value     = name;
+        document.getElementById('addonCategory').value = category;
+        document.getElementById('addonPrice').value    = price;
+        document.getElementById('addonIsActive').checked = isActive === 'true';
+        document.getElementById('addonModalBackdrop').style.display = 'flex';
+    }
+
+    // ── Pricing modal ──────────────────────────────────────────────────────────
+    function openPricingModal(id, name, price, cost) {
+        document.getElementById('pricingModalTitle').textContent = 'Update Pricing — ' + name;
+        document.getElementById('pricingId').value    = id;
+        document.getElementById('pricingPrice').value = price;
+        document.getElementById('pricingCost').value  = cost;
+        updateMarginPreview();
+        document.getElementById('pricingModalBackdrop').style.display = 'flex';
+    }
+
+    function updateMarginPreview() {
+        const price  = parseFloat(document.getElementById('pricingPrice').value) || 0;
+        const cost   = parseFloat(document.getElementById('pricingCost').value)  || 0;
+        const margin = price > 0 ? ((price - cost) / price * 100).toFixed(1) : '0.0';
+        const profit = (price - cost).toFixed(2);
+        document.getElementById('marginPreview').textContent = margin + '%';
+        const pp = document.getElementById('profitPreview');
+        if (pp) pp.textContent = '₱' + profit;
+    }
+
+    // ── Utility: escape HTML to prevent XSS in innerHTML assignments ───────────
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    // ── Auto-dismiss success banner ────────────────────────────────────────────
+    const sb = document.getElementById('successBanner');
+    if (sb) setTimeout(() => sb.remove(), 3000);
+
+</script>
+}

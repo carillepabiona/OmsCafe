@@ -1,0 +1,401 @@
+﻿@page
+@model OmsCafe.Pages.Admin.ReportsModel
+@{
+    ViewData["Title"] = "Sales Reports";
+    ViewData["Subtitle"] = "Daily, monthly and yearly sales overview";
+}
+
+<link rel="stylesheet" href="~/css/reports.css" />
+
+<!-- ── Filters ──────────────────────────────────────────────────── -->
+<div class="rpt-filter-bar">
+    <div class="rpt-tabs">
+        <button class="rpt-tab active" onclick="switchPeriod('daily', this)">Daily</button>
+        <button class="rpt-tab" onclick="switchPeriod('monthly', this)">Monthly</button>
+        <button class="rpt-tab" onclick="switchPeriod('yearly', this)">Yearly</button>
+    </div>
+
+    <div class="rpt-filter-right">
+        <!-- Daily filter -->
+        <div class="rpt-filter-group" id="filter-daily">
+            <label class="rpt-filter-label">Date</label>
+            <input type="date" class="rpt-input" id="daily-date"
+                   value="@DateTime.Today.ToString("yyyy-MM-dd")"
+                   onchange="loadReport()" />
+        </div>
+
+        <!-- Monthly filter -->
+        <div class="rpt-filter-group" id="filter-monthly" style="display:none">
+            <label class="rpt-filter-label">Month</label>
+            <input type="month" class="rpt-input" id="monthly-month"
+                   value="@DateTime.Today.ToString("yyyy-MM")"
+                   onchange="loadReport()" />
+        </div>
+
+        <!-- Yearly filter -->
+        <div class="rpt-filter-group" id="filter-yearly" style="display:none">
+            <label class="rpt-filter-label">Year</label>
+            <select class="rpt-input" id="yearly-year" onchange="loadReport()">
+                @for (int y = DateTime.Today.Year; y >= DateTime.Today.Year - 5; y--)
+                {
+                    if (y == DateTime.Today.Year)
+                    {
+                        <option value="@y" selected="selected">@y</option>
+                    }
+                    else
+                    {
+                        <option value="@y">@y</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <button class="rpt-export-btn" onclick="exportCSV()">
+            <i class="ti ti-download"></i> Export CSV
+        </button>
+    </div>
+</div>
+
+<!-- ── Summary Cards ─────────────────────────────────────────────── -->
+<div class="rpt-summary-grid" id="summary-grid">
+    <div class="rpt-card">
+        <div class="rpt-card-icon orange"><i class="ti ti-receipt"></i></div>
+        <div class="rpt-card-body">
+            <div class="rpt-card-label">Total Orders</div>
+            <div class="rpt-card-val" id="stat-orders">—</div>
+        </div>
+    </div>
+    <div class="rpt-card">
+        <div class="rpt-card-icon green"><i class="ti ti-cash"></i></div>
+        <div class="rpt-card-body">
+            <div class="rpt-card-label">Total Sales</div>
+            <div class="rpt-card-val" id="stat-sales">—</div>
+        </div>
+    </div>
+    <div class="rpt-card">
+        <div class="rpt-card-icon blue"><i class="ti ti-chart-bar"></i></div>
+        <div class="rpt-card-body">
+            <div class="rpt-card-label">Avg Order Value</div>
+            <div class="rpt-card-val" id="stat-avg">—</div>
+        </div>
+    </div>
+    <div class="rpt-card">
+        <div class="rpt-card-icon purple"><i class="ti ti-shopping-bag"></i></div>
+        <div class="rpt-card-body">
+            <div class="rpt-card-label">Items Sold</div>
+            <div class="rpt-card-val" id="stat-items">—</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Top Items ──────────────────────────────────────────────────── -->
+<div class="rpt-section-row">
+
+    <div class="rpt-panel">
+        <div class="rpt-panel-header">
+            <h3>Top Selling Items</h3>
+            <span class="rpt-panel-sub" id="period-label">Today</span>
+        </div>
+        <div class="rpt-panel-body">
+            <table class="rpt-table" id="top-items-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Item</th>
+                        <th>Qty Sold</th>
+                        <th>Revenue</th>
+                    </tr>
+                </thead>
+                <tbody id="top-items-body">
+                    <tr><td colspan="4" class="rpt-empty">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="rpt-panel">
+        <div class="rpt-panel-header">
+            <h3>Sales by Payment Method</h3>
+        </div>
+        <div class="rpt-panel-body" id="payment-breakdown">
+            <div class="rpt-empty">Loading…</div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ── Orders Table ───────────────────────────────────────────────── -->
+<div class="rpt-panel rpt-panel-full">
+    <div class="rpt-panel-header">
+        <h3>Order Details</h3>
+        <span class="rpt-panel-sub" id="orders-count-label">0 orders</span>
+    </div>
+    <div class="rpt-panel-body rpt-table-scroll">
+        <table class="rpt-table" id="orders-table">
+            <thead>
+                <tr>
+                    <th>Order #</th>
+                    <th>Customer</th>
+                    <th>Type</th>
+                    <th>Table</th>
+                    <th>Payment</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th>Date & Time</th>
+                </tr>
+            </thead>
+            <tbody id="orders-body">
+                <tr><td colspan="9" class="rpt-empty">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let currentPeriod = 'daily';
+    let reportData    = [];
+
+    // ── Period switch ──────────────────────────────────────────────
+    function switchPeriod(period, btn) {
+        currentPeriod = period;
+        document.querySelectorAll('.rpt-tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+
+        ['daily','monthly','yearly'].forEach(p => {
+            document.getElementById('filter-' + p).style.display = p === period ? 'flex' : 'none';
+        });
+
+        const labels = { daily: 'Today', monthly: 'This Month', yearly: 'This Year' };
+        document.querySelectorAll('.rpt-panel-sub').forEach(el => {
+            if (el.id === 'period-label') el.textContent = labels[period];
+        });
+
+        loadReport();
+    }
+
+    // ── Load report via API ────────────────────────────────────────
+    async function loadReport() {
+        let url = '/api/reports?period=' + currentPeriod;
+
+        if (currentPeriod === 'daily') {
+            url += '&date=' + document.getElementById('daily-date').value;
+        } else if (currentPeriod === 'monthly') {
+            url += '&month=' + document.getElementById('monthly-month').value;
+        } else {
+            url += '&year=' + document.getElementById('yearly-year').value;
+        }
+
+        setLoading(true);
+
+        try {
+            const res  = await fetch(url);
+            const data = await res.json();
+            reportData = data.orders || [];
+            renderSummary(data);
+            renderTopItems(data.topItems || []);
+            renderPaymentBreakdown(data.paymentBreakdown || []);
+            renderOrders(reportData);
+        } catch (e) {
+            console.error('Report load error:', e);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    // ── Render summary cards ───────────────────────────────────────
+    function renderSummary(data) {
+        document.getElementById('stat-orders').textContent = data.totalOrders ?? 0;
+        document.getElementById('stat-sales').textContent  = fmt(data.totalSales ?? 0);
+        document.getElementById('stat-avg').textContent    = fmt(data.avgOrderValue ?? 0);
+        document.getElementById('stat-items').textContent  = data.totalItemsSold ?? 0;
+    }
+
+    // ── Render top items table ─────────────────────────────────────
+    function renderTopItems(items) {
+        const tbody = document.getElementById('top-items-body');
+        if (!items.length) {
+            tbody.innerHTML = '<tr><td colspan="4" class="rpt-empty">No data for this period</td></tr>';
+            return;
+        }
+        tbody.innerHTML = items.map((item, i) => `
+            <tr>
+                <td><span class="rpt-rank">${i + 1}</span></td>
+                <td class="rpt-item-name">${item.name}</td>
+                <td><span class="rpt-qty-badge">${item.qtySold}</span></td>
+                <td class="rpt-amount">${fmt(item.revenue)}</td>
+            </tr>`).join('');
+    }
+
+    // ── Render payment breakdown ───────────────────────────────────
+    function renderPaymentBreakdown(breakdown) {
+        const container = document.getElementById('payment-breakdown');
+        if (!breakdown.length) {
+            container.innerHTML = '<div class="rpt-empty">No data for this period</div>';
+            return;
+        }
+        const total = breakdown.reduce((s, b) => s + b.amount, 0);
+        container.innerHTML = breakdown.map(b => {
+            const pct = total > 0 ? ((b.amount / total) * 100).toFixed(1) : 0;
+            return `
+                <div class="rpt-payment-row">
+                    <div class="rpt-payment-info">
+                        <span class="rpt-payment-method">${b.method}</span>
+                        <span class="rpt-payment-count">${b.count} orders</span>
+                    </div>
+                    <div class="rpt-payment-bar-wrap">
+                        <div class="rpt-payment-bar" style="width:${pct}%"></div>
+                    </div>
+                    <div class="rpt-payment-right">
+                        <span class="rpt-amount">${fmt(b.amount)}</span>
+                        <span class="rpt-pct">${pct}%</span>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    // ── Render orders table ────────────────────────────────────────
+    function renderOrders(orders) {
+        document.getElementById('orders-count-label').textContent = orders.length + ' orders';
+        const tbody = document.getElementById('orders-body');
+        if (!orders.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="rpt-empty">No orders for this period</td></tr>';
+            return;
+        }
+        tbody.innerHTML = orders.map(o => {
+            const dt      = new Date(o.createdAt);
+            const dateStr = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+            const timeStr = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+            return `
+                <tr>
+                    <td><span class="rpt-order-num">${o.orderNumber}</span></td>
+                    <td>${o.customerName || '—'}</td>
+                    <td><span class="rpt-type-badge ${o.orderType === 'dine-in' ? 'badge-dine' : 'badge-take'}">${o.orderType}</span></td>
+                    <td>${o.tableNumber || '—'}</td>
+                    <td>${o.paymentMethod}</td>
+                    <td class="rpt-center">${o.itemCount}</td>
+                    <td class="rpt-amount">${fmt(o.totalAmount)}</td>
+                    <td><span class="rpt-status-badge status-${(o.status || '').toLowerCase()}">${o.status}</span></td>
+                    <td class="rpt-datetime">${dateStr} ${timeStr}</td>
+                </tr>`;
+        }).join('');
+    }
+
+            // ── Export CSV ─────────────────────────────────────────────────
+        function exportCSV() {
+            if (!reportData.length) {
+                alert('No data to export for this period.');
+                return;
+            }
+
+            const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+            const rows   = [];
+
+            // ── Period label ──────────────────────────────────────────
+            const periodLabels = { daily: 'Daily', monthly: 'Monthly', yearly: 'Yearly' };
+            let periodValue = '';
+            if (currentPeriod === 'daily')   periodValue = document.getElementById('daily-date').value;
+            if (currentPeriod === 'monthly') periodValue = document.getElementById('monthly-month').value;
+            if (currentPeriod === 'yearly')  periodValue = document.getElementById('yearly-year').value;
+
+            rows.push([escape(`Sales Report — ${periodLabels[currentPeriod]}: ${periodValue}`)]);
+            rows.push([escape(`Exported: ${new Date().toLocaleString('en-PH')}`)]);
+            rows.push(['']);
+
+            // ── Summary ───────────────────────────────────────────────
+            rows.push([escape('SUMMARY')]);
+            rows.push(['Total Orders', 'Total Sales', 'Avg Order Value', 'Items Sold'].map(escape).join(','));
+            rows.push([
+                document.getElementById('stat-orders').textContent,
+                document.getElementById('stat-sales').textContent,
+                document.getElementById('stat-avg').textContent,
+                document.getElementById('stat-items').textContent
+            ].map(escape).join(','));
+            rows.push(['']);
+
+            // ── Top Items ─────────────────────────────────────────────
+            const topRows = [...document.querySelectorAll('#top-items-body tr')]
+                .filter(r => !r.querySelector('.rpt-empty'));
+
+            if (topRows.length) {
+                rows.push([escape('TOP SELLING ITEMS')]);
+                rows.push(['#', 'Item', 'Qty Sold', 'Revenue'].map(escape).join(','));
+                topRows.forEach(r => {
+                    const cells = r.querySelectorAll('td');
+                    rows.push([
+                        cells[0]?.textContent.trim(),
+                        cells[1]?.textContent.trim(),
+                        cells[2]?.textContent.trim(),
+                        cells[3]?.textContent.trim()
+                    ].map(escape).join(','));
+                });
+                rows.push(['']);
+            }
+
+            // ── Payment Breakdown ─────────────────────────────────────
+            const payRows = [...document.querySelectorAll('#payment-breakdown .rpt-payment-row')];
+
+            if (payRows.length) {
+                rows.push([escape('SALES BY PAYMENT METHOD')]);
+                rows.push(['Method', 'Orders', 'Amount', 'Share %'].map(escape).join(','));
+                payRows.forEach(r => {
+                    rows.push([
+                        r.querySelector('.rpt-payment-method')?.textContent.trim(),
+                        r.querySelector('.rpt-payment-count')?.textContent.replace(' orders','').trim(),
+                        r.querySelector('.rpt-amount')?.textContent.trim(),
+                        r.querySelector('.rpt-pct')?.textContent.trim()
+                    ].map(escape).join(','));
+                });
+                rows.push(['']);
+            }
+
+            // ── Orders Detail ─────────────────────────────────────────
+            rows.push([escape('ORDER DETAILS')]);
+            rows.push(['Order#','Customer','Type','Table','Payment','Items','Total','Status','Date & Time'].map(escape).join(','));
+            reportData.forEach(o => {
+                const dt = new Date(o.createdAt);
+                rows.push([
+                    o.orderNumber,
+                    o.customerName || '',
+                    o.orderType,
+                    o.tableNumber  || '',
+                    o.paymentMethod,
+                    o.itemCount,
+                    o.totalAmount,
+                    o.status,
+                    dt.toLocaleString('en-PH')
+                ].map(escape).join(','));
+            });
+
+            // ── Download ──────────────────────────────────────────────
+            const csv  = rows.map(r => Array.isArray(r) ? r.join(',') : r).join('\r\n');
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
+            const a    = Object.assign(document.createElement('a'), {
+                href:     URL.createObjectURL(blob),
+                download: `sales-report-${currentPeriod}-${periodValue}.csv`
+            });
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(a.href);
+        }
+
+    // ── Helpers ────────────────────────────────────────────────────
+    function fmt(n) { return '₱' + parseFloat(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+    function setLoading(on) {
+        const empty = '<tr><td colspan="9" class="rpt-empty">Loading…</td></tr>';
+        if (on) {
+            document.getElementById('orders-body').innerHTML    = empty;
+            document.getElementById('top-items-body').innerHTML = '<tr><td colspan="4" class="rpt-empty">Loading…</td></tr>';
+            ['stat-orders','stat-sales','stat-avg','stat-items'].forEach(id => {
+                document.getElementById(id).textContent = '—';
+            });
+        }
+    }
+
+    // ── Init ───────────────────────────────────────────────────────
+    loadReport();
+</script>
+}

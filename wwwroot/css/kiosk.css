@@ -1,0 +1,27 @@
+﻿#confirm-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(28,25,23,.55);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: .3s;
+    z-index: 100;
+}
+
+    #confirm-overlay.show {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    #confirm-overlay .modal {
+        transform: translateY(24px) scale(.97);
+        transition: .35s cubic-bezier(.34,1.56,.64,1);
+    }
+
+    #confirm-overlay.show .modal {
+        transform: none;
+    }

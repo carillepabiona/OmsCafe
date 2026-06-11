@@ -1,0 +1,124 @@
+﻿@page "/Admin/GenerateQRCodes"
+@model OmsCafe.Pages.Admin.GenerateQRCodesModel
+
+@{
+    ViewData["Title"] = "Table QR Codes";
+}
+
+@section TopbarActions {
+    <!-- Page Header -->
+    <button class="btn-print"
+            onclick="window.print()">
+        Print QR Codes
+    </button>
+
+}
+
+
+<!DOCTYPE html>
+<html>
+<head>
+
+    <style>
+
+
+            .btn-print {
+                background: #E8611A;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 400;
+            }
+
+            .qr-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill,minmax(280px,1fr));
+                gap: 20px;
+            }
+
+            .qr-card {
+                background: white;
+                border-radius: 12px;
+                padding: 20px;
+                text-align: center;
+                box-shadow: 0 2px 8px rgba(0,0,0,.1);
+            }
+
+                .qr-card img {
+                    width: 200px;
+                    height: 200px;
+                    object-fit: contain;
+                }
+
+            .table-title {
+                font-size: 24px;
+                font-weight: bold;
+                margin-top: 15px;
+                color: #E8611A;
+            }
+
+            .scan-text {
+                margin-top: 10px;
+                color: #666;
+            }
+
+            .url-text {
+                font-size: 11px;
+                word-break: break-all;
+                color: #999;
+                margin-top: 8px;
+            }
+
+            @@media print {
+
+                .btn-print,
+                .page-header h1 {
+                    display: none;
+                }
+
+                body {
+                    background: white;
+                }
+
+                .qr-card {
+                    box-shadow: none;
+                    border: 1px solid #ddd;
+                    page-break-inside: avoid;
+                }
+            }
+    </style>
+</head>
+<body>
+
+    <div class="qr-grid">
+
+        @foreach (var qr in Model.QRCodes)
+        {
+            <div class="qr-card">
+
+                <img src="data:image/png;base64,@qr.QRCodeBase64"
+                     alt="Table @qr.TableNumber QR" />
+
+                <div class="table-title">
+                    TABLE @qr.TableNumber
+                    <p style="font-size:0.75rem;word-break:break-all;color:gray">@qr.Url</p>
+                </div>
+
+                <div class="scan-text">
+                    <strong>How to Order</strong><br />
+                    1. Scan QR Code<br />
+                    2. Select Items<br />
+                    3. Checkout Order<br />
+                    4. Pay Staff<br />
+                    5. Track via <strong>My Order</strong>
+                </div>
+
+            </div>
+        }
+
+    </div>
+
+</body>
+</html>
