@@ -175,6 +175,20 @@
                         <button class="order-type-btn" id="ot-take" onclick="setOrderType('Takeout', this)">🥡 Takeout</button>
                     </div>
                 </div>
+
+                <!-- NEW: CUSTOMER TYPE (Regular / PWD / Senior) -->
+                <div class="form-group">
+                    <span class="form-label">Customer Type</span>
+                    <div class="order-type-btns" role="group" aria-label="Customer type" id="customer-type-group">
+                        <button class="order-type-btn active" onclick="setDiscountRequest('None', this)">Regular</button>
+                        <button class="order-type-btn" onclick="setDiscountRequest('PWD', this)">PWD</button>
+                        <button class="order-type-btn" onclick="setDiscountRequest('Senior', this)">Senior</button>
+                    </div>
+                    <p id="discount-note" style="display:none;font-size:0.8rem;color:var(--text-muted);margin-top:6px">
+                        🪪 Please present a valid ID to the cashier. The discount is applied after verification.
+                    </p>
+                </div>
+
                 <div class="form-group" id="table-group">
                     <label class="form-label" for="table-num">Table Number</label>
                     <input type="text" class="form-input" id="table-num" placeholder="e.g. 5" />
@@ -256,10 +270,10 @@
             <!-- PANEL 3 — Payment confirmed. Session over. Done = free the table. -->
             <div class="success-body" id="postorder-done" style="display:none">
                 <h2 class="success-title">All done — enjoy!</h2>
-                <p class="success-sub">Payment confirmed. Thank you for for Ordering!</p>
+                <p class="success-sub">Payment confirmed. Thank you for Ordering!</p>
                 <div class="order-number" id="postorder-done-number"></div>
 
-            <!-- PRIMARY: Free the table and end the session -->
+                <!-- PRIMARY: Free the table and end the session -->
                 <button class="btn-add-to-cart"
                         style="width:100%;
                     margin-bottom:10px;
@@ -447,6 +461,10 @@
             let currentSelections = {};
             let currentAddons     = new Set();
             let currentOrderType  = 'Dine In';
+
+            // ── Customer type: what the customer REQUESTS. The cashier verifies the ID
+            //    and applies the real discount. None | PWD | Senior
+            let currentDiscountRequest = 'None';
 
             // ── Post-order call-staff state (primary flow) ──
             // Tracks the active staff-call session for the post-checkout modal.
@@ -835,9 +853,29 @@
 
             function setOrderType(type, btn) {
                 currentOrderType = type;
-                document.querySelectorAll('.order-type-btn').forEach(b => b.classList.remove('active'));
+                // Scoped to this button group only, so it doesn't clear the Customer Type buttons.
+                btn.parentElement.querySelectorAll('.order-type-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 document.getElementById('table-group').style.display = type === 'Dine In' ? 'block' : 'none';
+            }
+
+            // ══════════════════════════════════════════════════════════════════
+            // CUSTOMER TYPE (Regular / PWD / Senior)
+            // The customer only REQUESTS a discount. The cashier verifies the ID
+            // and applies it. Nothing here changes the price.
+            // ══════════════════════════════════════════════════════════════════
+            function setDiscountRequest(type, btn) {
+                currentDiscountRequest = type;
+                btn.parentElement.querySelectorAll('.order-type-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('discount-note').style.display = type === 'None' ? 'none' : 'block';
+            }
+
+            function resetDiscountRequest() {
+                currentDiscountRequest = 'None';
+                const group = document.getElementById('customer-type-group');
+                group.querySelectorAll('.order-type-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+                document.getElementById('discount-note').style.display = 'none';
             }
 
             // ══════════════════════════════════════════════════════════════════
@@ -884,6 +922,9 @@
                     toast('Please enter table number'); return;
                 }
 
+                // Capture now, because resetDiscountRequest() clears the state later.
+                const discountRequest = currentDiscountRequest;
+
                 const subtotal = cart.reduce((s, i) => s + i.unitPrice * i.qty, 0);
                 const prepTime = Math.max(...cart.map(ci => {
                     const mi = MENU_ITEMS.find(m => m.id === ci.itemId);
@@ -895,6 +936,7 @@
                     orderType:        currentOrderType === 'Dine In' ? 'dine-in' : 'take-out',
                     tableNumber:      table,
                     paymentMethod:    document.getElementById('payment-method').value,
+                    discountRequest:  discountRequest,
                     estimatedMinutes: Math.max(prepTime, 5),
                     items: cart.map(ci => ({
                         menuItemId:          ci.itemId,
@@ -932,6 +974,7 @@
                         orderType:        currentOrderType,
                         tableNumber:      table,
                         paymentMethod:    orderPayload.paymentMethod,
+                        discountRequest:  discountRequest,
                         items:            JSON.parse(JSON.stringify(cart)),
                         subtotal,
                         status:           'Pending',
@@ -947,12 +990,13 @@
                     updateCartBadge();
                     updateOrdersDot();
                     closeCheckout();
+                    resetDiscountRequest();
 
                     // Store order number for the post-order modal flow.
                     postOrderNumber = data.orderNumber;
 
                     // Open the post-order modal at Panel 1 (call staff prompt).
-                    openPostOrderModal(data.orderNumber, name, currentOrderType, table, Math.max(prepTime, 5));
+                    openPostOrderModal(data.orderNumber, name, currentOrderType, table, Math.max(prepTime, 5), discountRequest);
 
                 } catch (err) {
                     console.error('Order error:', err);
@@ -969,7 +1013,7 @@
 
             // Opens the post-order modal at Panel 1 (pending/call-staff prompt).
             // Called once right after placeOrder() succeeds.
-            function openPostOrderModal(orderNumber, name, orderType, table, estMins) {
+            function openPostOrderModal(orderNumber, name, orderType, table, estMins, discountRequest = 'None') {
                 // Reset all panels to baseline state.
                 document.getElementById('postorder-pending').style.display = '';
                 document.getElementById('postorder-waiting').style.display = 'none';
@@ -980,9 +1024,12 @@
                 if (callBtn) callBtn.disabled = false;
 
                 // Populate order info fields.
+                const discountLine = discountRequest !== 'None'
+                    ? `<br>🪪 ${discountRequest} discount requested. Have your ID ready`
+                    : '';
                 document.getElementById('postorder-number').textContent = orderNumber;
                 document.getElementById('postorder-details').innerHTML  =
-                    `${name} · ${orderType}${table ? ' · Table ' + table : ''}<br>Est. ready in ~${estMins} min`;
+                    `${name} · ${orderType}${table ? ' · Table ' + table : ''}<br>Est. ready in ~${estMins} min${discountLine}`;
 
                 document.getElementById('postorder-modal').classList.add('open');
             }
@@ -1159,6 +1206,8 @@
                             <div>
                                 <div class="order-id">${o.orderId}</div>
                                 <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px">${o.customerName} · ${o.orderType}${o.tableNumber ? ' · Table ' + o.tableNumber : ''}</div>
+                                ${o.discountRequest && o.discountRequest !== 'None'
+                                    ? `<div style="font-size:0.75rem;color:var(--brand-700);margin-top:2px">🪪 ${o.discountRequest} (pending ID check)</div>` : ''}
                             </div>
                             <span class="order-status-badge" data-status="${o.status}">
                                 ${ ['Pending','Preparing'].includes(o.status) ? '<span class="live-dot"></span> ' : '' }
@@ -1190,7 +1239,6 @@
                                 <span class="order-total">${fmt(o.subtotal)}</span>
                             </div>
                         </div>
-                        // Already correct — covers both dine-in and takeout
                         ${['Ready', 'Served'].includes(o.status) ? `
                             <button class="btn-callstaff-trigger" onclick="openCallStaff('${o.orderId}')">
                                 🔔 Call Staff for Payment

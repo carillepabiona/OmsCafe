@@ -6,7 +6,7 @@ namespace OmsCafe.Pages.Api
 {
     [ApiController]
     [Route("api/orders")]
-    [IgnoreAntiforgeryToken]  // ← add this
+    [IgnoreAntiforgeryToken]
     public class PlaceOrderController : ControllerBase
     {
         private readonly AppDbContext _db;
@@ -17,6 +17,14 @@ namespace OmsCafe.Pages.Api
         {
             if (dto == null || dto.Items == null || !dto.Items.Any())
                 return BadRequest(new { error = "Invalid order" });
+
+            // Only accept known values; anything else becomes "None" (Regular)
+            var discountRequest = dto.DiscountRequest?.Trim() switch
+            {
+                "PWD" => "PWD",
+                "Senior" => "Senior",
+                _ => "None"
+            };
 
             var lastId = _db.Orders.Any()
                 ? _db.Orders.Max(o => o.Id)
@@ -30,12 +38,15 @@ namespace OmsCafe.Pages.Api
                 Type = dto.OrderType,
                 TableNumber = dto.TableNumber,
                 PaymentMethod = dto.PaymentMethod,
-                // Line: Status = "pending",
-                // Change to:
-                Status = "awaiting_payment",
-                // In PlaceOrderController, replace the Total line:
-                // Total = dto.Items.Sum(i => i.UnitPrice * i.Quantity) * 1.12m,  // includes 12% tax
-                Total = dto.Items.Sum(i => i.UnitPrice * i.Quantity), // includes 12% tax
+                Status = "Waiting Payment",
+
+                // What the customer asked for. The cashier verifies the ID later.
+                DiscountRequest = discountRequest,
+
+                // Always FULL price here. The cashier applies the discount after ID check.
+                // No VAT/tax: total is the plain sum of the lines.
+                Total = dto.Items.Sum(i => i.UnitPrice * i.Quantity),
+
                 EstimatedMinutes = dto.EstimatedMinutes,
                 CreatedAt = DateTime.UtcNow,
                 Items = dto.Items.Select(i => new OrderItem
@@ -62,6 +73,8 @@ namespace OmsCafe.Pages.Api
         public string OrderType { get; set; } = "dine-in";
         public string? TableNumber { get; set; }
         public string PaymentMethod { get; set; } = "Cash";
+
+        public string? DiscountRequest { get; set; }   // None | PWD | Senior
         public int EstimatedMinutes { get; set; }
         public List<PlaceOrderItemDto> Items { get; set; } = new();
     }

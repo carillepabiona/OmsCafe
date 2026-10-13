@@ -6,119 +6,106 @@
 }
 
 @section TopbarActions {
-    <!-- Page Header -->
-    <button class="btn-print"
-            onclick="window.print()">
-        Print QR Codes
+    <button type="button" class="btn-add no-print" onclick="openAdd()">
+        <i class="fa-solid fa-plus"></i> Add Table
     </button>
-
+    <button type="button" class="btn-print no-print" onclick="window.print()">
+        <i class="fa-solid fa-print"></i> Print QR Codes
+    </button>
 }
 
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+<link rel="stylesheet" href="/css/qr.css" />
 
-<!DOCTYPE html>
-<html>
-<head>
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="qr-alert ok"><i class="fa-solid fa-circle-check"></i> @Model.Message</div>
+}
+@if (!string.IsNullOrEmpty(Model.Error))
+{
+    <div class="qr-alert err"><i class="fa-solid fa-circle-exclamation"></i> @Model.Error</div>
+}
 
-    <style>
+<div class="qr-grid">
+    @foreach (var qr in Model.QRCodes)
+    {
+        <div class="qr-card">
+            <img src="data:image/png;base64,@qr.QRCodeBase64" alt="Table @qr.TableNumber QR" />
 
+            <div class="table-title">TABLE @qr.TableNumber</div>
 
-            .btn-print {
-                background: #E8611A;
-                color: white;
-                border: none;
-                padding: 6px 12px;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 400;
-            }
-
-            .qr-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fill,minmax(280px,1fr));
-                gap: 20px;
-            }
-
-            .qr-card {
-                background: white;
-                border-radius: 12px;
-                padding: 20px;
-                text-align: center;
-                box-shadow: 0 2px 8px rgba(0,0,0,.1);
-            }
-
-                .qr-card img {
-                    width: 200px;
-                    height: 200px;
-                    object-fit: contain;
-                }
-
-            .table-title {
-                font-size: 24px;
-                font-weight: bold;
-                margin-top: 15px;
-                color: #E8611A;
-            }
-
-            .scan-text {
-                margin-top: 10px;
-                color: #666;
-            }
-
-            .url-text {
-                font-size: 11px;
-                word-break: break-all;
-                color: #999;
-                margin-top: 8px;
-            }
-
-            @@media print {
-
-                .btn-print,
-                .page-header h1 {
-                    display: none;
-                }
-
-                body {
-                    background: white;
-                }
-
-                .qr-card {
-                    box-shadow: none;
-                    border: 1px solid #ddd;
-                    page-break-inside: avoid;
-                }
-            }
-    </style>
-</head>
-<body>
-
-    <div class="qr-grid">
-
-        @foreach (var qr in Model.QRCodes)
-        {
-            <div class="qr-card">
-
-                <img src="data:image/png;base64,@qr.QRCodeBase64"
-                     alt="Table @qr.TableNumber QR" />
-
-                <div class="table-title">
-                    TABLE @qr.TableNumber
-                    <p style="font-size:0.75rem;word-break:break-all;color:gray">@qr.Url</p>
-                </div>
-
-                <div class="scan-text">
-                    <strong>How to Order</strong><br />
-                    1. Scan QR Code<br />
-                    2. Select Items<br />
-                    3. Checkout Order<br />
-                    4. Pay Staff<br />
-                    5. Track via <strong>My Order</strong>
-                </div>
-
+            <div class="scan-text">
+                <strong>How to Order</strong><br />
+                1. Scan QR Code<br />
+                2. Select Items<br />
+                3. Checkout Order<br />
+                4. Pay Staff<br />
+                5. Track via <strong>My Order</strong>
             </div>
-        }
 
-    </div>
+            <div class="qr-actions no-print">
+                <button type="button" onclick="openEdit(@qr.TableNumber)"><i class="fa-solid fa-pen"></i> Edit</button>
+                <button type="button" class="danger" onclick="openDelete(@qr.TableNumber)"><i class="fa-solid fa-trash"></i> Delete</button>
+            </div>
+        </div>
+    }
 
-</body>
-</html>
+    @if (!Model.QRCodes.Any())
+    {
+        <div class="qr-empty">
+            <i class="fa-solid fa-qrcode"></i>
+            No tables yet. Click <strong>Add Table</strong> to create your first QR code.
+        </div>
+    }
+</div>
+
+<!-- Add -->
+<dialog class="qr-dialog" id="dlg-add">
+    <form method="post" asp-page-handler="Create">
+        <h3>Add table</h3>
+        <p>A unique QR code is generated automatically.</p>
+        <label for="add-number">Table number</label>
+        <input type="number" id="add-number" name="tableNumber" min="1" required />
+        <div class="dlg-actions">
+            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+            <button type="submit" class="primary">Add table</button>
+        </div>
+    </form>
+</dialog>
+
+<!-- Edit -->
+<dialog class="qr-dialog" id="dlg-edit">
+    <form method="post" asp-page-handler="Update">
+        <input type="hidden" name="currentNumber" id="edit-id" />
+        <h3>Edit table</h3>
+        <p>The QR code link updates with the new number, so reprint it after saving.</p>
+        <label for="edit-number">Table number</label>
+        <input type="number" id="edit-number" name="tableNumber" min="1" required />
+        <div class="dlg-actions">
+            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+            <button type="submit" class="primary">Save changes</button>
+        </div>
+    </form>
+</dialog>
+
+<!-- Delete -->
+<dialog class="qr-dialog" id="dlg-delete">
+    <form method="post" asp-page-handler="Delete">
+        <input type="hidden" name="tableNumber" id="delete-id" />
+        <h3 id="delete-title">Delete table?</h3>
+        <p>Its QR code will stop working. This can't be undone.</p>
+        <div class="dlg-actions">
+            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+            <button type="submit" class="danger">Delete table</button>
+        </div>
+    </form>
+</dialog>
+
+@section Scripts {
+<script>
+    const $ = id => document.getElementById(id);
+    function openAdd() { $('add-number').value = ''; $('dlg-add').showModal(); $('add-number').focus(); }
+    function openEdit(n) { $('edit-id').value = n; $('edit-number').value = n; $('dlg-edit').showModal(); $('edit-number').select(); }
+    function openDelete(n) { $('delete-id').value = n; $('delete-title').textContent = 'Delete Table ' + n + '?'; $('dlg-delete').showModal(); }
+</script>
+}

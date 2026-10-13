@@ -1,29 +1,32 @@
 ﻿@page
 @model OmsCafe.Pages.Cashier.OrdersModel
+@functions {
+    // "Waiting Payment" -> "waiting-payment" (safe for CSS classes and classList)
+    static string Slug(string s) => (s ?? "").Trim().ToLower().Replace(' ', '-');
+}
 @{
     ViewData["Title"] = "Order Management";
     ViewData["Subtitle"] = "Manage all active orders in real-time";
 }
 
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="~/css/orders.css" />
 
 <!-- ── CALL STAFF NOTIFICATION BANNER ── -->
-<div id="staff-notif-banner" style="display:none;">
+<div id="staff-notif-banner" style="display:none;" role="alert">
     <div class="staff-notif-inner">
-        <span class="staff-notif-icon">🔔</span>
+        <span class="staff-notif-icon"><i class="fa-solid fa-bell"></i></span>
         <div class="staff-notif-text">
             <strong id="staff-notif-title">Customer is calling for staff</strong>
             <span id="staff-notif-sub"></span>
         </div>
-        <button class="staff-notif-ack" onclick="acknowledgeCallStaff()">✓ Acknowledge</button>
-        <button class="staff-notif-dismiss" onclick="dismissNotif()">✕</button>
+        <button type="button" class="staff-notif-ack" onclick="acknowledgeCallStaff()">✓ Acknowledge</button>
+        <button type="button" class="staff-notif-dismiss" onclick="dismissNotif()" aria-label="Dismiss">✕</button>
     </div>
 </div>
 
-<!-- ── CALL STAFF NOTIFICATION TOAST LIST ── -->
-<div id="staff-toast-stack" style="position:fixed;top:80px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px;"></div>
-
+<!-- ── CALL STAFF TOAST STACK ── -->
+<div id="staff-toast-stack"></div>
 
 <div class="orders-page">
     <!-- Header -->
@@ -31,7 +34,7 @@
         <div class="header-stats">
             <div class="stat-badge">
                 <span class="stat-label">Total Orders</span>
-                <span class="stat-value" id="hdr-total">@Model.AllOrders.Count</span>
+                <span class="stat-value" id="hdr-total">@Model.AllOrders.Count(o => o.Status != "cancelled")</span>
             </div>
             <div class="stat-badge">
                 <span class="stat-label">In Progress</span>
@@ -46,118 +49,174 @@
                 <span class="stat-value" id="hdr-ready">@Model.AllOrders.Count(o => o.Status == "ready")</span>
             </div>
             <!-- Staff call indicator -->
-            <div class="stat-badge" id="staff-call-badge" style="display:none;cursor:pointer;border-color:#E8611A;" onclick="showStaffBanner()">
-                <span class="stat-label" style="color:#E8611A;">🔔 Staff Calls</span>
-                <span class="stat-value" id="staff-call-count" style="color:#E8611A;">0</span>
-            </div>
+            <button type="button" class="stat-badge stat-badge-alert" id="staff-call-badge" style="display:none;" onclick="showStaffBanner()">
+                <span class="stat-label"><i class="fa-solid fa-bell"></i> Staff Calls</span>
+                <span class="stat-value" id="staff-call-count">0</span>
+            </button>
         </div>
     </div>
 
-    <!-- Search & Filters -->
+    <!-- Search + filters -->
     <form method="get" id="filterForm">
         <div class="search-filters-section">
             <div class="search-box">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <circle cx="11" cy="11" r="8"></circle>
                     <path d="m21 21-4.35-4.35"></path>
                 </svg>
-                <input type="text"
+                <input type="search"
+                       id="search-input"
                        name="searchQuery"
                        value="@Model.SearchQuery"
-                       placeholder="Search by Order #, Table, or Item..."
+                       placeholder="Search by order #, table or item"
+                       aria-label="Search orders"
                        oninput="debouncedSearch(this)" />
-            </div>
-            <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
-
-            <div class="filter-buttons">
-                @foreach (var filter in new[] { "all", "pending", "preparing", "ready", "paid" })
+                @if (!string.IsNullOrWhiteSpace(Model.SearchQuery))
                 {
-                    var label = filter == "all" ? "All Orders" : filter == "paid" ? "Completed" : char.ToUpper(filter[0]) + filter.Substring(1);
-                    <button type="submit" name="selectedFilter" value="@filter"
-                            class="filter-btn @(Model.SelectedFilter == filter ? "active" : "")">
-                        @label
-                    </button>
+                    <a class="search-clear"
+                       asp-page="/Cashier/Orders"
+                       asp-route-selectedTab="@Model.SelectedTab"
+                       asp-route-selectedFilter="@Model.SelectedFilter"
+                       aria-label="Clear search">✕</a>
                 }
             </div>
-        </div>
+            <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+            <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
 
-        <!-- Tabs -->
-        <div class="tabs-section">
-            @foreach (var tab in new[] { ("dine-in", "Dine-In"), ("take-out", "Take-Out"), ("completed", "Completed") })
+            @if (Model.SelectedTab != "completed")
             {
-                <button type="submit" name="selectedTab" value="@tab.Item1"
-                        class="tab-btn @(Model.SelectedTab == tab.Item1 ? "active" : "")">
-                    @if (tab.Item1 == "dine-in")
+                <div class="filter-buttons" role="group" aria-label="Filter by status">
+                    @foreach (var f in new[] {
+                        ("all", "All Status"),
+                        ("Waiting Payment", "Waiting Payment"),
+                        ("pending", "Pending"),
+                        ("preparing", "Preparing"),
+                        ("ready", "Ready") })
                     {
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M6 9l12 0"></path>
-                            <rect x="2" y="3" width="20" height="14" rx="2"></rect>
-                            <path d="M5 21h14"></path>
-                        </svg>
+                        <a asp-page="/Cashier/Orders"
+                           asp-route-selectedTab="@Model.SelectedTab"
+                           asp-route-selectedFilter="@f.Item1"
+                           asp-route-searchQuery="@Model.SearchQuery"
+                           class="filter-btn @(Model.SelectedFilter == f.Item1 ? "active" : "")">@f.Item2</a>
                     }
-                    else if (tab.Item1 == "take-out")
-                    {
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-                            <line x1="3" y1="6" x2="21" y2="6"></line>
-                            <path d="M16 10a4 4 0 0 1-8 0"></path>
-                        </svg>
-                    }
-                    else
-                    {
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                    }
-                    <span>@tab.Item2</span>
-                    <span class="tab-badge" id="tab-badge-@tab.Item1">
-                        @(tab.Item1 == "completed"
-                            ? Model.AllOrders.Count(o => o.Status == "served")
-                            : Model.OrdersFiltered.Count(o => o.Type == tab.Item1))
-                    </span>
-                </button>
+                </div>
             }
         </div>
     </form>
 
+    <!-- Tabs -->
+    <div class="tabs-section" role="tablist">
+        @foreach (var tab in new[] {
+            ("all", "All Orders"),
+            ("dine-in", "Dine-In"),
+            ("take-out", "Take-Out"),
+            ("completed", "Completed") })
+        {
+            <a asp-page="/Cashier/Orders"
+               asp-route-selectedTab="@tab.Item1"
+               asp-route-selectedFilter="all"
+               asp-route-searchQuery="@Model.SearchQuery"
+               role="tab"
+               aria-selected="@(Model.SelectedTab == tab.Item1 ? "true" : "false")"
+               class="tab-btn @(Model.SelectedTab == tab.Item1 ? "active" : "")">
+                @if (tab.Item1 == "all")
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                }
+                else if (tab.Item1 == "dine-in")
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M6 9l12 0"></path>
+                        <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                        <path d="M5 21h14"></path>
+                    </svg>
+                }
+                else if (tab.Item1 == "take-out")
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <path d="M16 10a4 4 0 0 1-8 0"></path>
+                    </svg>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                }
+                <span>@tab.Item2</span>
+                <span class="tab-badge" id="tab-badge-@tab.Item1">@Model.CountFor(tab.Item1)</span>
+            </a>
+        }
+    </div>
+
     <!-- Orders Grid -->
     <div class="orders-list-section">
-        @if (!Model.OrdersFiltered.Any())
-        {
-            <div class="empty-state" id="empty-state">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"></path>
-                </svg>
-                <p>No orders found</p>
-                <span class="empty-hint">Try adjusting your filters</span>
-            </div>
-        }
+        <div class="empty-state" id="empty-state" style="@(Model.OrdersFiltered.Any() ? "display:none" : "")">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"></path>
+            </svg>
+            <p>No orders here</p>
+            <span class="empty-hint">
+                @(string.IsNullOrWhiteSpace(Model.SearchQuery)
+                    ? "New orders show up automatically."
+                    : "Nothing matches your search. Try a different order number, table or item.")
+            </span>
+        </div>
 
         <div class="orders-grid" id="orders-grid">
             @foreach (var order in Model.OrdersFiltered)
             {
-                <div class="order-card order-@order.Status"
+                @* Customer type: verified type wins, then what the customer requested, else Regular *@
+                var custType = !string.IsNullOrEmpty(order.DiscountType)
+                    ? order.DiscountType
+                    : (order.DiscountRequest == "PWD" || order.DiscountRequest == "Senior")
+                        ? order.DiscountRequest
+                        : "Regular";
+                var custVerified = !string.IsNullOrEmpty(order.DiscountType);
+
+                <div class="order-card order-@Slug(order.Status)"
                      id="order-card-@order.Id"
                      data-status="@order.Status"
                      data-type="@order.Type"
-                     onclick="openPanel(@order.Id)">
+                     data-customer-type="@custType"
+                     tabindex="0"
+                     role="button"
+                     aria-label="Open order @order.OrderNumber"
+                     onclick="openPanel(@order.Id)"
+                     onkeydown="if (event.key === 'Enter' && event.target === this) openPanel(@order.Id)">
                     <div class="order-card-header">
-                        <div>
+                        <div class="oc-title">
                             <span class="order-number">#@order.OrderNumber</span>
-                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">
-                                @order.CustomerName
-                            </div>
+                            <span class="order-customer">@order.CustomerName</span>
                         </div>
-                        <div class="order-badges">
-                            <span class="order-type-badge @order.Type">
-                                @(order.Type == "dine-in" ? "🍽️ Dine-In" : "🛍️ Take-Out")
-                            </span>
-                            <span class="order-status-badge @order.Status"
-                                  id="status-badge-@order.Id">@order.Status</span>
-                        </div>
+                        <span class="order-status-badge @Slug(order.Status)"
+                              id="status-badge-@order.Id">@order.Status</span>
                     </div>
 
                     <div class="order-card-content">
+                        <div class="order-tags">
+                            <span class="order-type-badge @order.Type">
+                                @if (order.Type == "dine-in")
+                                {
+                                    <text><i class="fa-solid fa-utensils"></i> Dine-In</text>
+                                }
+                                else
+                                {
+                                    <text><i class="fa-solid fa-bag-shopping"></i> Take-Out</text>
+                                }
+                            </span>
+                            <span class="customer-badge ct-@custType.ToLower()">
+                                @(custType == "Regular" ? "👤" : "🪪") @custType
+                            </span>
+                        </div>
+
                         <div class="order-details-grid">
                             @if (!string.IsNullOrEmpty(order.Table))
                             {
@@ -175,6 +234,27 @@
                                 <span class="detail-value time-badge" id="elapsed-@order.Id">@order.ElapsedTime</span>
                             </div>
                         </div>
+
+                        @* ── Discount status (Regular shows nothing extra) ── *@
+                        @if (custVerified)
+                        {
+                            <div class="discount-note ok">
+                                ✔ @order.DiscountType verified (−₱@order.DiscountAmount.ToString("0.00"))
+                            </div>
+                        }
+                        else if (custType != "Regular")
+                        {
+                            <div class="discount-note warn">
+                                ⚠ @custType requested. Verify ID before payment.
+                            </div>
+                        }
+
+                        @if (order.Status == "printing")
+                        {
+                            <div class="print-indicator" id="print-ind-@order.Id">
+                                <span class="print-indicator-dot"></span> Printing receipt…
+                            </div>
+                        }
 
                         <div class="items-preview">
                             @foreach (var item in order.Items.Take(2))
@@ -196,13 +276,22 @@
                             <span class="price-label">Total</span>
                             <span class="price-value">₱@order.Total.ToString("0.00")</span>
                         </div>
-                        <a class="btn-view" href="#" onclick="event.stopPropagation(); openPanel(@order.Id); return false;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                <circle cx="12" cy="12" r="3"></circle>
-                            </svg>
-                            View
-                        </a>
+                        <div class="card-actions">
+                            @if (order.Status == "Waiting Payment")
+                            {
+                                <button type="button" class="btn-quick-pay" id="quick-pay-@order.Id"
+                                        onclick="event.stopPropagation(); openPayModal(@order.Id);">
+                                    <i class="fa-solid fa-peso-sign"></i> Mark as Paid
+                                </button>
+                            }
+                            <a class="btn-view" href="#" onclick="event.stopPropagation(); openPanel(@order.Id); return false;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                View
+                            </a>
+                        </div>
                     </div>
                 </div>
             }
@@ -210,12 +299,19 @@
     </div>
 </div>
 
-<!-- Order Detail Panel -->
+<!-- Order Detail Panels -->
 @foreach (var order in Model.AllOrders)
 {
+    var pType = !string.IsNullOrEmpty(order.DiscountType)
+        ? order.DiscountType
+        : (order.DiscountRequest == "PWD" || order.DiscountRequest == "Senior")
+            ? order.DiscountRequest
+            : "Regular";
+    var pVerified = !string.IsNullOrEmpty(order.DiscountType);
+
     <div id="panel-overlay-@order.Id" class="panel-overlay" style="display:none;" onclick="closePanel(@order.Id)"></div>
 
-    <div id="panel-@order.Id" class="order-details-panel" style="display:none;">
+    <div id="panel-@order.Id" class="order-details-panel" style="display:none;" role="dialog" aria-label="Order @order.OrderNumber details">
         <div class="panel-header">
             <div class="panel-header-content">
                 <h2>Order #@order.OrderNumber</h2>
@@ -223,7 +319,7 @@
                     @order.Status.ToUpper() • @order.ElapsedTime elapsed
                 </p>
             </div>
-            <a href="#" class="btn-close" onclick="closePanel(@order.Id); return false;">×</a>
+            <a href="#" class="btn-close" aria-label="Close" onclick="closePanel(@order.Id); return false;">×</a>
         </div>
 
         <div class="panel-content">
@@ -233,6 +329,20 @@
                     <div class="info-item">
                         <label>Customer</label>
                         <p>@order.CustomerName</p>
+                    </div>
+                    <div class="info-item">
+                        <label>Customer Type</label>
+                        <p>
+                            <span class="customer-badge ct-@pType.ToLower()">
+                                @(pType == "Regular" ? "👤" : "🪪") @pType
+                            </span>
+                            @if (pType != "Regular")
+                            {
+                                <small class="info-sub">
+                                    @(pVerified ? "ID verified" : "ID not yet verified")
+                                </small>
+                            }
+                        </p>
                     </div>
                     <div class="info-item">
                         <label>Order Type</label>
@@ -247,7 +357,7 @@
                     }
                     <div class="info-item">
                         <label>Status</label>
-                        <div class="info-badge @order.Status" id="panel-status-badge-@order.Id">@order.Status</div>
+                        <div class="info-badge @Slug(order.Status)" id="panel-status-badge-@order.Id">@order.Status</div>
                     </div>
                     <div class="info-item">
                         <label>Time</label>
@@ -270,7 +380,7 @@
                                 }
                                 @if (!string.IsNullOrEmpty(item.SpecialInstructions))
                                 {
-                                    <p class="item-meta">📝 @item.SpecialInstructions</p>
+                                    <p class="item-meta"><i class="fa-solid fa-note-sticky"></i> @item.SpecialInstructions</p>
                                 }
                             </div>
                             <p class="item-price">₱@item.Price.ToString("0.00")</p>
@@ -279,17 +389,89 @@
                 </div>
             </div>
 
+            @* ── DISCOUNT SECTION ──
+               Lives outside panel-actions so the JS rebuild never wipes what the cashier is typing. *@
+            @if (order.DiscountRequest == "PWD" || order.DiscountRequest == "Senior" || !string.IsNullOrEmpty(order.DiscountType))
+            {
+                <div class="panel-section" id="discount-section-@order.Id">
+                    <h3>Discount</h3>
+
+                    @if (string.IsNullOrEmpty(order.DiscountType) && order.Status == "Waiting Payment")
+                    {
+                        <p class="discount-intro">
+                            Customer requested <strong>@order.DiscountRequest</strong>. Check their ID, then apply the discount before taking payment.
+                        </p>
+                        <form method="post" asp-page-handler="ApplyDiscount" class="discount-form">
+                            <input type="hidden" name="orderId" value="@order.Id" />
+                            <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+                            <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
+                            <label class="field">
+                                <span>Discount type</span>
+                                <select name="discountType" required>
+                                    <option value="PWD" selected="@(order.DiscountRequest == "PWD")">PWD</option>
+                                    <option value="Senior" selected="@(order.DiscountRequest == "Senior")">Senior Citizen</option>
+                                </select>
+                            </label>
+                            <label class="field">
+                                <span>ID number</span>
+                                <input type="text" name="idNumber" placeholder="Enter ID number" required />
+                            </label>
+                            <label class="field">
+                                <span>Name on ID</span>
+                                <input type="text" name="idName" placeholder="Enter name as shown on ID" required />
+                            </label>
+                            <button type="submit" class="action-btn btn-accept">Verify &amp; Apply 20% Discount</button>
+                        </form>
+                    }
+                    else if (!string.IsNullOrEmpty(order.DiscountType))
+                    {
+                        <div class="info-grid">
+                            <div class="info-item"><label>Type</label><p>@order.DiscountType</p></div>
+                            <div class="info-item"><label>Name on ID</label><p>@order.DiscountIdName</p></div>
+                            <div class="info-item"><label>ID Number</label><p>@order.DiscountIdNumber</p></div>
+                            <div class="info-item"><label>Verified by</label><p>@order.DiscountVerifiedBy</p></div>
+                        </div>
+                        @if (order.Status == "Waiting Payment")
+                        {
+                            <form method="post" asp-page-handler="RemoveDiscount" class="discount-remove"
+                                  data-confirm="Remove the @order.DiscountType discount from order #@order.OrderNumber?">
+                                <input type="hidden" name="orderId" value="@order.Id" />
+                                <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+                                <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
+                                <button type="submit" class="action-btn btn-danger">Remove Discount</button>
+                            </form>
+                        }
+                    }
+                    else
+                    {
+                        <p class="discount-intro">
+                            Customer requested <strong>@order.DiscountRequest</strong>, but no discount was applied before payment.
+                        </p>
+                    }
+                </div>
+            }
+
             <div class="panel-section">
                 <h3>Summary</h3>
                 <div class="summary-table">
-                    <div class="summary-row">
-                        <span>Subtotal</span>
-                        <span>₱@((order.Total * 0.85m).ToString("0.00"))</span>
-                    </div>
-                    <div class="summary-row">
-                        <span>Tax (12%)</span>
-                        <span>₱@((order.Total * 0.10m).ToString("0.00"))</span>
-                    </div>
+                    @if (!string.IsNullOrEmpty(order.DiscountType))
+                    {
+                        <div class="summary-row">
+                            <span>Subtotal</span>
+                            <span>₱@((order.Total + order.DiscountAmount).ToString("0.00"))</span>
+                        </div>
+                        <div class="summary-row discount-row">
+                            <span>@order.DiscountType Discount (VAT-exempt + 20%)</span>
+                            <span>−₱@order.DiscountAmount.ToString("0.00")</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="summary-row">
+                            <span>Subtotal</span>
+                            <span>₱@order.Total.ToString("0.00")</span>
+                        </div>
+                    }
                     <div class="summary-row total">
                         <span>Total Amount</span>
                         <span>₱@order.Total.ToString("0.00")</span>
@@ -304,31 +486,26 @@
                     <div class="special-instructions">@order.SpecialInstructions</div>
                 </div>
             }
-
         </div>
 
         <div class="panel-actions" id="panel-actions-@order.Id">
-            @if (order.Status == "awaiting_payment")
+            @if (order.Status == "printing")
             {
-                <form method="post" asp-page-handler="UpdateStatus">
-                    <input type="hidden" name="orderId" value="@order.Id" />
-                    <input type="hidden" name="newStatus" value="pending" />
-                    <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
-                    <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
-                    <button type="submit" class="action-btn btn-paid">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                            <line x1="1" y1="10" x2="23" y2="10"></line>
-                        </svg>
-                        Mark as Paid → Send to Kitchen
-                    </button>
-                </form>
-                <form method="post" asp-page-handler="UpdateStatus">
+                <div class="print-lock"><i class="fa-solid fa-print"></i> Printing receipt… Accept Order unlocks when it finishes.</div>
+            }
+
+            @if (order.Status == "Waiting Payment")
+            {
+                <button type="button" class="action-btn btn-paid" onclick="openPayModal(@order.Id)">
+                    <i class="fa-solid fa-peso-sign"></i> Mark as Paid
+                </button>
+                <form method="post" asp-page-handler="UpdateStatus"
+                      data-confirm="Cancel order #@order.OrderNumber? This cannot be undone.">
                     <input type="hidden" name="orderId" value="@order.Id" />
                     <input type="hidden" name="newStatus" value="cancelled" />
                     <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
                     <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
-                    <button type="submit" class="action-btn btn-cancel">Cancel Order</button>
+                    <button type="submit" class="action-btn btn-danger">Cancel Order</button>
                 </form>
             }
 
@@ -361,291 +538,334 @@
                     <input type="hidden" name="newStatus" value="paid" />
                     <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
                     <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
-                    <button type="submit" class="action-btn btn-paid">
-                        Mark Served
-                    </button>
+                    <button type="submit" class="action-btn btn-paid">Mark Served</button>
                 </form>
             }
 
-            <form method="post" asp-page-handler="PrintReceipt">
-                <input type="hidden" name="orderId" value="@order.Id" />
-                <button type="submit" class="action-btn btn-print">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
-                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-                    </svg>
-                    Print Receipt
-                </button>
-            </form>
-            <a href="#" class="action-btn btn-cancel" onclick="closePanel(@order.Id); return false;">Cancel</a>
+            @if (order.Status != "printing")
+            {
+                <form method="post" asp-page-handler="PrintReceipt">
+                    <input type="hidden" name="orderId" value="@order.Id" />
+                    <button type="submit" class="action-btn btn-print">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                            <rect x="6" y="14" width="12" height="8"></rect>
+                        </svg>
+                        Print Receipt
+                    </button>
+                </form>
+            }
+            <a href="#" class="action-btn btn-ghost" onclick="closePanel(@order.Id); return false;">Close</a>
         </div>
     </div>
 }
 
+<!-- ══════════════ PAYMENT MODAL ══════════════ -->
+<div id="pay-modal" class="pay-modal" hidden>
+    <div class="pay-backdrop" onclick="closePayModal()"></div>
+
+    <form id="pay-form" class="pay-dialog" method="post" asp-page-handler="UpdateStatus"
+          role="dialog" aria-modal="true" aria-labelledby="pay-title"
+          autocomplete="off" onsubmit="return submitPayment(event)">
+        <input type="hidden" name="orderId" id="pay-f-order" />
+        <input type="hidden" name="newStatus" value="pending" />
+        <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+        <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
+        <input type="hidden" name="amountTendered" id="pay-f-tendered" />
+        <input type="hidden" name="changeAmount" id="pay-f-change" />
+
+        <div class="pay-head">
+            <div>
+                <h2 id="pay-title">Take payment</h2>
+                <p class="pay-meta" id="pay-meta"></p>
+            </div>
+            <button type="button" class="pay-x" onclick="closePayModal()" aria-label="Close">×</button>
+        </div>
+
+        <div class="pay-body">
+            <div class="pay-warn" id="pay-warn" hidden>
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>
+                    <strong id="pay-warn-text"></strong>
+                    <button type="button" class="pay-link" onclick="verifyDiscountFirst()">Verify ID first</button>
+                </div>
+            </div>
+
+            <div class="pay-due">
+                <span class="pay-due-label">Amount due</span>
+                <span class="pay-due-value" id="pay-due">₱0.00</span>
+                <span class="pay-due-note" id="pay-due-note" hidden></span>
+            </div>
+
+            <label class="pay-field" for="pay-input">
+                <span>Cash received</span>
+                <div class="pay-input-wrap">
+                    <span class="pay-peso">₱</span>
+                    <input id="pay-input" type="text" inputmode="decimal" placeholder="0.00"
+                           oninput="onPayInput()" aria-describedby="pay-result" />
+                </div>
+            </label>
+
+            <div class="pay-chips" id="pay-chips" aria-label="Quick amounts"></div>
+
+            <div class="pay-result" id="pay-result" data-state="idle" aria-live="polite">
+                <span class="pay-result-label" id="pay-result-label">Change</span>
+                <span class="pay-result-value" id="pay-result-value">—</span>
+                <span class="pay-result-hint" id="pay-result-hint">Enter the amount the customer handed over.</span>
+            </div>
+        </div>
+
+        <div class="pay-foot">
+            <button type="button" class="action-btn btn-ghost-border" onclick="closePayModal()">Back</button>
+            <button type="submit" class="action-btn btn-paid" id="pay-confirm" disabled>Confirm payment</button>
+        </div>
+    </form>
+</div>
+
+<!-- Receipt printer animation dock -->
+<div id="receipt-dock" aria-live="polite"></div>
+
+@{
+    // Data the receipt animation needs (active orders only). Keyed by order id.
+    var receiptData = Model.AllOrders
+        .Where(o => !OmsCafe.Pages.Cashier.OrdersModel.IsCompleted(o.Status) && o.Status != "cancelled")
+        .ToDictionary(o => o.Id, o => new
+        {
+            orderNumber = o.OrderNumber,
+            type = o.Type,
+            table = o.Table,
+            total = o.Total,
+            discountType = o.DiscountType,
+            discountAmount = o.DiscountAmount,
+            items = o.Items.Select(i => new { qty = i.Quantity, name = i.Name, price = i.Price })
+        });
+
+    // Data the payment modal needs. Keyed by order id.
+    var payData = Model.AllOrders.ToDictionary(o => o.Id, o => new
+    {
+        orderNumber = o.OrderNumber,
+        customer = o.CustomerName,
+        type = o.Type,
+        table = o.Table,
+        itemCount = o.ItemCount,
+        total = o.Total,
+        discountType = o.DiscountType,
+        discountAmount = o.DiscountAmount,
+        discountRequest = o.DiscountRequest
+    });
+
+    // Orders already in "printing" when the page loads (just paid / mid-print refresh)
+    var printingIds = Model.AllOrders.Where(o => o.Status == "printing").Select(o => o.Id);
+}
+
 <script>
+    // ── HELPERS ────────────────────────────────────────────────────────────────
+    const byId  = id => document.getElementById(id);
+    const slug  = s => String(s ?? '').trim().toLowerCase().replace(/\s+/g, '-');
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const esc   = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const peso  = v => '₱' + Number(v || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
     // ── PANEL ──────────────────────────────────────────────────────────────────
     function openPanel(orderId) {
-        document.getElementById('panel-' + orderId).style.display = 'flex';
-        document.getElementById('panel-overlay-' + orderId).style.display = 'block';
+        const panel   = byId('panel-' + orderId);
+        const overlay = byId('panel-overlay-' + orderId);
+        if (!panel || !overlay) { location.reload(); return; }
+        panel.style.display   = 'flex';
+        overlay.style.display = 'block';
         document.body.style.overflow = 'hidden';
     }
     function closePanel(orderId) {
-        document.getElementById('panel-' + orderId).style.display = 'none';
-        document.getElementById('panel-overlay-' + orderId).style.display = 'none';
-        document.body.style.overflow = '';
+        const panel   = byId('panel-' + orderId);
+        const overlay = byId('panel-overlay-' + orderId);
+        if (panel)   panel.style.display = 'none';
+        if (overlay) overlay.style.display = 'none';
+        syncScrollLock();
+    }
+    function openPanelId() {
+        const el = document.querySelector('.order-details-panel[style*="flex"]');
+        return el ? +el.id.replace('panel-', '') : null;
+    }
+    function syncScrollLock() {
+        const anyOpen = !!openPanelId() || !byId('pay-modal').hidden;
+        document.body.style.overflow = anyOpen ? 'hidden' : '';
     }
 
-    // ── DEBOUNCED SEARCH (prevent double-submit on oninput) ───────────────────
+    // ── SEARCH ────────────────────────────────────────────────────────────────
+    // Search reloads the page, so remember to put the cursor back afterwards.
     let searchTimeout;
     function debouncedSearch(input) {
         clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => input.form.submit(), 400);
+        searchTimeout = setTimeout(() => {
+            try { sessionStorage.setItem('orders-refocus', '1'); } catch (e) {}
+            input.form.submit();
+        }, 500);
     }
+    byId('filterForm').addEventListener('submit', () => {
+        try { sessionStorage.setItem('orders-refocus', '1'); } catch (e) {}
+    });
+    (function restoreSearchFocus() {
+        try {
+            if (sessionStorage.getItem('orders-refocus')) {
+                sessionStorage.removeItem('orders-refocus');
+                const i = byId('search-input');
+                i.focus();
+                const n = i.value.length;
+                i.setSelectionRange(n, n);
+            }
+        } catch (e) {}
+    })();
 
     // ── STATE ─────────────────────────────────────────────────────────────────
-    // Track current tab & filter so we know which cards belong on screen.
     const ACTIVE_TAB    = '@Model.SelectedTab';
     const ACTIVE_FILTER = '@Model.SelectedFilter';
+    const HAS_SEARCH    = @(string.IsNullOrWhiteSpace(Model.SearchQuery) ? "false" : "true");
 
-    // Statuses that belong in the "completed" tab
-    const COMPLETED_STATUSES = new Set(['served']);
+    const isCompleted = s => s === 'paid' || s === 'served';
+    const IN_PROGRESS = new Set(['pending', 'preparing', 'ready']);
 
-    // Statuses that are still active (should show in dine-in / take-out tabs)
-    const ACTIVE_STATUSES = new Set(['awaiting_payment', 'pending', 'preparing', 'ready']);
+    // Mirrors OrdersModel.MatchesTab on the server
+    function inTab(order, tab) {
+        if (order.status === 'cancelled') return false;
+        switch (tab) {
+            case 'completed': return isCompleted(order.status);
+            case 'dine-in':   return !isCompleted(order.status) && order.type === 'dine-in';
+            case 'take-out':  return !isCompleted(order.status) && order.type === 'take-out';
+            default:          return !isCompleted(order.status);   // 'all' = dine-in + take-out
+        }
+    }
+
+    function belongsHere(order) {
+        if (!inTab(order, ACTIVE_TAB)) return false;
+        if (ACTIVE_TAB === 'completed' || ACTIVE_FILTER === 'all') return true;
+        return order.status === ACTIVE_FILTER;
+    }
+
+    const lastStatus = new Map();   // orderId -> last status we rendered
 
     // ── SILENT SYNC ───────────────────────────────────────────────────────────
-    // Fetches all orders from the KDS API every 5 seconds and:
-    //  1. Updates status badges in-place (no flicker)
-    //  2. Smoothly removes cards that have been marked served/completed by KDS
-    //  3. Updates the panel subtitle and action buttons if a panel is open
-    //  4. Refreshes header stat counters
-
     async function syncOrderStatuses() {
         try {
             const res = await fetch('/api/kds/orders-all');
             if (!res.ok) return;
             const orders = await res.json();
 
-            let totalCount      = orders.length;
-            let inProgressCount = 0;
-            let readyCount      = 0;
+            let inProgressCount = 0, readyCount = 0, needsReload = false;
+            const tabCounts = { 'all': 0, 'dine-in': 0, 'take-out': 0, 'completed': 0 };
 
             orders.forEach(order => {
                 const newStatus = order.status;
+                const changed   = lastStatus.get(order.id) !== newStatus;
+                lastStatus.set(order.id, newStatus);
 
-                // ── 1. Update the status badge on the card ──────────────────
-                const badge = document.getElementById(`status-badge-${order.id}`);
-                if (badge && badge.textContent !== newStatus) {
-                    badge.textContent  = newStatus;
-                    badge.className    = `order-status-badge ${newStatus}`;
-                    badge.dataset.prev = newStatus;
+                Object.keys(tabCounts).forEach(t => { if (inTab(order, t)) tabCounts[t]++; });
+                if (IN_PROGRESS.has(newStatus)) inProgressCount++;
+                if (newStatus === 'ready') readyCount++;
 
-                    const card = document.getElementById(`order-card-${order.id}`);
-                    if (card) {
-                        card.className = card.className
-                            .replace(/order-\S+/g, '')
-                            .trim() + ` order-${newStatus}`;
+                const card = byId(`order-card-${order.id}`);
+
+                // receipt printing
+                if (newStatus === 'printing') queueReceipt(order.id);
+                if (newStatus !== 'printing') byId(`print-ind-${order.id}`)?.remove();
+
+                // the quick "Mark as Paid" button only makes sense while waiting for payment
+                if (newStatus !== 'Waiting Payment') byId(`quick-pay-${order.id}`)?.remove();
+
+                // 1. card status badge + accent colour
+                if (card) {
+                    const prev = card.dataset.status;
+                    if (prev !== newStatus) {
+                        card.classList.remove(`order-${slug(prev)}`);
+                        card.classList.add(`order-${slug(newStatus)}`);
                         card.dataset.status = newStatus;
+
+                        const badge = byId(`status-badge-${order.id}`);
+                        if (badge) {
+                            badge.textContent = newStatus;
+                            badge.className   = `order-status-badge ${slug(newStatus)}`;
+                        }
 
                         card.classList.remove('order-card-updated');
                         void card.offsetWidth;
                         card.classList.add('order-card-updated');
                     }
+                    const elapsedEl = byId(`elapsed-${order.id}`);
+                    if (elapsedEl && order.elapsedTime) elapsedEl.textContent = order.elapsedTime;
                 }
 
-                // ── 2. Update elapsed time on card ──────────────────────────
-                const elapsedEl = document.getElementById(`elapsed-${order.id}`);
-                if (elapsedEl && order.elapsedTime) {
-                    elapsedEl.textContent = order.elapsedTime;
+                // 2. detail panel (subtitle, badge, time)
+                const panelSub = byId(`panel-status-${order.id}`);
+                if (panelSub) panelSub.textContent = `${newStatus.toUpperCase()} • ${order.elapsedTime || ''} elapsed`;
+                const panelBadge = byId(`panel-status-badge-${order.id}`);
+                if (panelBadge) {
+                    panelBadge.textContent = newStatus;
+                    panelBadge.className   = `info-badge ${slug(newStatus)}`;
+                }
+                const panelElapsed = byId(`panel-elapsed-${order.id}`);
+                if (panelElapsed && order.elapsedTime) panelElapsed.textContent = order.elapsedTime;
+
+                // 3. rebuild action buttons ONLY when the status changed
+                if (changed) {
+                    const panelActions = byId(`panel-actions-${order.id}`);
+                    if (panelActions) panelActions.innerHTML = buildActionButtons(order);
                 }
 
-                // ── 3. Update panel subtitle if open ────────────────────────
-                const panelSub = document.getElementById(`panel-status-${order.id}`);
-                if (panelSub) {
-                    panelSub.textContent = `${newStatus.toUpperCase()} • ${order.elapsedTime || ''} elapsed`;
-                }
-                const panelStatusBadge = document.getElementById(`panel-status-badge-${order.id}`);
-                if (panelStatusBadge) {
-                    panelStatusBadge.textContent = newStatus;
-                    panelStatusBadge.className   = `info-badge ${newStatus}`;
-                }
-                const panelElapsed = document.getElementById(`panel-elapsed-${order.id}`);
-                if (panelElapsed && order.elapsedTime) {
-                    panelElapsed.textContent = order.elapsedTime;
-                }
-
-                // ── 4. Rebuild action buttons in open panel ──────────────────
-                const panelActions = document.getElementById(`panel-actions-${order.id}`);
-                if (panelActions) {
-                    const rebuilt = buildActionButtons(order);
-                    if (rebuilt) panelActions.innerHTML = rebuilt;
-                }
-
-                // ── 5. Handle completed status ────────────────────────────────
-                if (COMPLETED_STATUSES.has(newStatus)) {
-                    if (ACTIVE_TAB !== 'completed') {
-                        // Remove from active tabs with fade-out animation
-                        const card = document.getElementById(`order-card-${order.id}`);
-                        if (card && !card.classList.contains('order-card-exit')) {
-                            card.classList.add('order-card-exit');
-                            setTimeout(() => {
-                                card.remove();
-                                checkEmptyState();
-                            }, 360);
-                        }
-                    } else {
-                        // On completed tab: inject the card if it isn't already there
-                        if (!document.getElementById(`order-card-${order.id}`)) {
-                            injectCompletedCard(order);
-                        }
+                // 4. does this order still belong on the current tab / filter?
+                if (card) {
+                    if (!belongsHere(order) && !card.classList.contains('order-card-exit')) {
+                        card.classList.add('order-card-exit');
+                        setTimeout(() => { card.remove(); checkEmptyState(); }, 360);
                     }
+                } else if (belongsHere(order)) {
+                    needsReload = true;
                 }
-
-                // ── Counter tallies ──────────────────────────────────────────
-                if (ACTIVE_STATUSES.has(newStatus)) inProgressCount++;
-                if (newStatus === 'ready') readyCount++;
             });
 
-            // ── 6. Update header stat counters silently ──────────────────────
-            const hdrTotal  = document.getElementById('hdr-total');
-            const hdrInProg = document.getElementById('hdr-inprogress');
-            const hdrReady  = document.getElementById('hdr-ready');
-            if (hdrTotal)  hdrTotal.textContent  = totalCount;
-            if (hdrInProg) hdrInProg.textContent = inProgressCount;
-            if (hdrReady)  hdrReady.textContent  = readyCount;
+            const set = (id, v) => { const el = byId(id); if (el) el.textContent = v; };
+            set('hdr-total',      orders.filter(o => o.status !== 'cancelled').length);
+            set('hdr-inprogress', inProgressCount);
+            set('hdr-ready',      readyCount);
+            Object.entries(tabCounts).forEach(([tab, n]) => set(`tab-badge-${tab}`, n));
 
-            // ── 7. Apply active filter: hide cards that don't match ──────────
-            if (ACTIVE_FILTER !== 'all') {
-                document.querySelectorAll('#orders-grid .order-card').forEach(card => {
-                    const s = card.dataset.status;
-                    const matches = (ACTIVE_FILTER === 'paid')
-                        ? COMPLETED_STATUSES.has(s)
-                        : s === ACTIVE_FILTER;
-                    card.style.display = matches ? '' : 'none';
-                });
-            }
+            // New order for this tab -> reload quietly, but never while someone is
+            // in a panel, taking payment, or a receipt is printing.
+            const busy = !!openPanelId() || !byId('pay-modal').hidden || printBusy;
+            if (needsReload && !HAS_SEARCH && !busy) location.reload();
 
-            // ── 8. Update completed tab badge count ──────────────────────────
-            // After the header stat counters update:
-            const completedCount = orders.filter(o => COMPLETED_STATUSES.has(o.status)).length;
-            const completedBadge = document.getElementById('tab-badge-completed');
-            if (completedBadge) completedBadge.textContent = completedCount;
-
-        } catch(e) {
+        } catch (e) {
             console.error('Sync error:', e);
         }
     }
-        function injectCompletedCard(order) {
-        const grid = document.getElementById('orders-grid');
-        if (!grid) return;
 
-        const typeLabel = order.type === 'dine-in' ? '🍽️ Dine-In' : '🛍️ Take-Out';
-        const itemsHtml = (order.items || []).slice(0, 2).map(item =>
-            `<div class="item-preview">
-                <span class="item-qty">${item.quantity}×</span>
-                <span class="item-name">${item.name}</span>
-            </div>`
-        ).join('');
-        const moreHtml = (order.items || []).length > 2
-            ? `<div class="items-more">+${order.items.length - 2} more items</div>`
-            : '';
-        const tableHtml = order.table
-            ? `<div class="detail-item">
-                   <span class="detail-label">Table</span>
-                   <span class="detail-value">${order.table}</span>
-               </div>`
-            : '';
-
-        const card = document.createElement('div');
-        card.className = `order-card order-${order.status}`;
-        card.id = `order-card-${order.id}`;
-        card.dataset.status = order.status;
-        card.dataset.type = order.type || '';
-        card.style.animation = 'cardPulse 0.6s ease';
-        card.setAttribute('onclick', `openPanel(${order.id})`);
-        card.innerHTML = `
-            <div class="order-card-header">
-                <div>
-                    <span class="order-number">#${order.orderNumber}</span>
-                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">
-                        ${order.customerName || ''}
-                    </div>
-                </div>
-                <div class="order-badges">
-                    <span class="order-type-badge ${order.type}">${typeLabel}</span>
-                    <span class="order-status-badge ${order.status}"
-                          id="status-badge-${order.id}">${order.status}</span>
-                </div>
-            </div>
-            <div class="order-card-content">
-                <div class="order-details-grid">
-                    ${tableHtml}
-                    <div class="detail-item">
-                        <span class="detail-label">Items</span>
-                        <span class="detail-value">${order.itemCount || (order.items || []).length}</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Time</span>
-                        <span class="detail-value time-badge" id="elapsed-${order.id}">${order.elapsedTime || ''}</span>
-                    </div>
-                </div>
-                <div class="items-preview">${itemsHtml}${moreHtml}</div>
-            </div>
-            <div class="order-card-footer">
-                <div class="order-price">
-                    <span class="price-label">Total</span>
-                    <span class="price-value">₱${(order.total || 0).toFixed(2)}</span>
-                </div>
-                <a class="btn-view" href="#" onclick="event.stopPropagation(); openPanel(${order.id}); return false;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                    View
-                </a>
-            </div>`;
-
-        grid.prepend(card); // newest completed orders appear first
-
-        // Hide the empty state if it was showing
-        const empty = document.getElementById('empty-state');
-        if (empty) empty.style.display = 'none';
-    }
-
-    // Show empty state message if grid becomes empty
     function checkEmptyState() {
-        const grid  = document.getElementById('orders-grid');
+        const grid  = byId('orders-grid');
         const cards = grid ? grid.querySelectorAll('.order-card:not(.order-card-exit)') : [];
-        const empty = document.getElementById('empty-state');
-        if (!cards.length && empty) {
-            empty.style.display = '';
-        }
+        const empty = byId('empty-state');
+        if (empty) empty.style.display = cards.length ? 'none' : '';
     }
 
     // ── BUILD ACTION BUTTONS (for panel re-render) ────────────────────────────
     function buildActionButtons(order) {
         let html  = '';
         const token = document.querySelector('input[name=__RequestVerificationToken]')?.value || '';
-        const tab   = ACTIVE_TAB;
-        const filt  = ACTIVE_FILTER;
 
         const hiddens = `
             <input type="hidden" name="__RequestVerificationToken" value="${token}" />
-            <input type="hidden" name="selectedTab"    value="${tab}" />
-            <input type="hidden" name="selectedFilter" value="${filt}" />
+            <input type="hidden" name="selectedTab"    value="${ACTIVE_TAB}" />
+            <input type="hidden" name="selectedFilter" value="${ACTIVE_FILTER}" />
             <input type="hidden" name="orderId"        value="${order.id}" />`;
 
-        if (order.status === 'awaiting_payment') {
+        if (order.status === 'printing') {
+            html += `<div class="print-lock"><i class="fa-solid fa-print"></i> Printing receipt… Accept Order unlocks when it finishes.</div>`;
+        }
+        if (order.status === 'Waiting Payment') {
             html += `
-            <form method="post" action="?handler=UpdateStatus">
-                ${hiddens}
-                <input type="hidden" name="newStatus" value="pending" />
-                <button type="submit" class="action-btn btn-paid">💳 Mark as Paid → Send to Kitchen</button>
-            </form>
-            <form method="post" action="?handler=UpdateStatus">
+            <button type="button" class="action-btn btn-paid" onclick="openPayModal(${order.id})"><i class="fa-solid fa-peso-sign"></i> Mark as Paid</button>
+            <form method="post" action="?handler=UpdateStatus" data-confirm="Cancel this order? This cannot be undone.">
                 ${hiddens}
                 <input type="hidden" name="newStatus" value="cancelled" />
-                <button type="submit" class="action-btn btn-cancel">✕ Cancel Order</button>
+                <button type="submit" class="action-btn btn-danger">Cancel Order</button>
             </form>`;
         }
         if (order.status === 'pending') {
@@ -653,7 +873,7 @@
             <form method="post" action="?handler=UpdateStatus">
                 ${hiddens}
                 <input type="hidden" name="newStatus" value="preparing" />
-                <button type="submit" class="action-btn btn-accept">▶ Accept Order</button>
+                <button type="submit" class="action-btn btn-accept">Accept Order</button>
             </form>`;
         }
         if (order.status === 'preparing') {
@@ -661,7 +881,7 @@
             <form method="post" action="?handler=UpdateStatus">
                 ${hiddens}
                 <input type="hidden" name="newStatus" value="ready" />
-                <button type="submit" class="action-btn btn-ready">✓ Mark Ready</button>
+                <button type="submit" class="action-btn btn-ready">Mark Ready</button>
             </form>`;
         }
         if (order.status === 'ready') {
@@ -669,20 +889,183 @@
             <form method="post" action="?handler=UpdateStatus">
                 ${hiddens}
                 <input type="hidden" name="newStatus" value="paid" />
-                <button type="submit" class="action-btn btn-paid"> Served </button>
+                <button type="submit" class="action-btn btn-paid">Mark Served</button>
             </form>`;
         }
 
-        html += `
+        if (order.status !== 'printing') {
+            html += `
             <form method="post" action="?handler=PrintReceipt">
                 <input type="hidden" name="__RequestVerificationToken" value="${token}" />
                 <input type="hidden" name="orderId" value="${order.id}" />
-                <button type="submit" class="action-btn btn-print">🖨 Print Receipt</button>
-            </form>
-            <a href="#" class="action-btn btn-cancel" onclick="closePanel(${order.id}); return false;">Close</a>`;
+                <button type="submit" class="action-btn btn-print"><i class="fa-solid fa-print"></i> Print Receipt</button>
+            </form>`;
+        }
+        html += `<a href="#" class="action-btn btn-ghost" onclick="closePanel(${order.id}); return false;">Close</a>`;
 
         return html;
     }
+
+    // ── FORM SAFETY: confirm dialogs + no double submits ─────────────────────
+    document.addEventListener('submit', e => {
+        const f = e.target;
+        if (f.id === 'pay-form' || f.id === 'filterForm') return;
+        const msg = f.dataset.confirm;
+        if (msg && !confirm(msg)) { e.preventDefault(); return; }
+        setTimeout(() => f.querySelectorAll('button[type=submit]').forEach(b => b.disabled = true), 0);
+    });
+
+    // ══════════════ PAYMENT MODAL ══════════════
+    const PAY_DATA = @Json.Serialize(payData);
+
+    const payModal = byId('pay-modal');
+    const payInput = byId('pay-input');
+    let payOrderId = null, payDueCents = 0, payReturnFocus = null;
+
+    const toCents = v => Math.round((parseFloat(v) || 0) * 100);
+
+    function quickAmounts(dueCents) {
+        // Round the bill up to the next 50 / 100 / 500 / 1000, skip duplicates and the exact amount
+        const due = dueCents / 100;
+        const out = new Set();
+        [50, 100, 500, 1000].forEach(d => {
+            const v = Math.ceil(due / d) * d;
+            if (v * 100 > dueCents) out.add(v);
+        });
+        return [...out].sort((a, b) => a - b).slice(0, 4);
+    }
+
+    function openPayModal(id) {
+        const d = PAY_DATA[id];
+        if (!d) { location.reload(); return; }
+
+        payOrderId     = id;
+        payDueCents    = toCents(d.total);
+        payReturnFocus = document.activeElement;
+
+        byId('pay-f-order').value = id;
+        byId('pay-title').textContent = `Take payment · #${d.orderNumber}`;
+        byId('pay-meta').textContent = [
+            d.customer,
+            d.type === 'dine-in' ? 'Dine-In' : 'Take-Out',
+            d.table ? `Table ${d.table}` : null,
+            `${d.itemCount} item${d.itemCount === 1 ? '' : 's'}`
+        ].filter(Boolean).join(' · ');
+
+        byId('pay-due').textContent = peso(d.total);
+
+        // discount info
+        const note = byId('pay-due-note');
+        if (d.discountType) {
+            note.textContent = `${d.discountType} discount applied (−${peso(d.discountAmount)})`;
+            note.hidden = false;
+        } else {
+            note.hidden = true;
+        }
+        const warn = byId('pay-warn');
+        if (!d.discountType && (d.discountRequest === 'PWD' || d.discountRequest === 'Senior')) {
+            byId('pay-warn-text').textContent = `Customer requested a ${d.discountRequest} discount and the ID isn't verified yet.`;
+            warn.hidden = false;
+        } else {
+            warn.hidden = true;
+        }
+
+        // quick-amount chips
+        const chips = byId('pay-chips');
+        chips.innerHTML = '';
+        const mk = (label, cents) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'pay-chip';
+            b.dataset.cents = cents;
+            b.textContent = label;
+            b.onclick = () => { payInput.value = (cents / 100).toFixed(2); onPayInput(true); payInput.focus(); };
+            chips.appendChild(b);
+        };
+        mk('Exact', payDueCents);
+        quickAmounts(payDueCents).forEach(v => mk(peso(v).replace('.00', ''), v * 100));
+
+        payInput.value = '';
+        onPayInput();
+
+        payModal.hidden = false;
+        syncScrollLock();
+        setTimeout(() => payInput.focus(), 30);
+    }
+
+    function closePayModal() {
+        payModal.hidden = true;
+        payOrderId = null;
+        syncScrollLock();
+        if (payReturnFocus && payReturnFocus.focus) payReturnFocus.focus();
+    }
+
+    function verifyDiscountFirst() {
+        const id = payOrderId;
+        closePayModal();
+        openPanel(id);
+        setTimeout(() => byId(`discount-section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+    }
+
+    function onPayInput(fromChip) {
+        if (!fromChip) {
+            // digits and one decimal point, max 2 decimals
+            payInput.value = payInput.value.replace(/[^\d.]/g, '').replace(/^(\d*\.?\d{0,2}).*$/, '$1');
+        }
+        const has   = payInput.value.trim() !== '';
+        const t     = toCents(payInput.value);
+        const box   = byId('pay-result');
+        const label = byId('pay-result-label');
+        const value = byId('pay-result-value');
+        const hint  = byId('pay-result-hint');
+        let state;
+
+        if (!has) {
+            state = 'idle';
+            label.textContent = 'Change';
+            value.textContent = '—';
+            hint.textContent  = 'Enter the amount the customer handed over.';
+        } else if (t < payDueCents) {
+            state = 'short';
+            label.textContent = 'Still needed';
+            value.textContent = peso((payDueCents - t) / 100);
+            hint.textContent  = 'The amount received is less than the total.';
+        } else if (t === payDueCents) {
+            state = 'exact';
+            label.textContent = 'Change';
+            value.textContent = peso(0);
+            hint.textContent  = 'Exact amount. No change to give.';
+        } else {
+            state = 'ok';
+            label.textContent = 'Change to give';
+            value.textContent = peso((t - payDueCents) / 100);
+            hint.textContent  = `Received ${peso(t / 100)}`;
+        }
+        box.dataset.state = state;
+        byId('pay-confirm').disabled = !(has && t >= payDueCents);
+
+        document.querySelectorAll('#pay-chips .pay-chip').forEach(c =>
+            c.classList.toggle('active', has && +c.dataset.cents === t));
+    }
+
+    function submitPayment(e) {
+        const has = payInput.value.trim() !== '';
+        const t   = toCents(payInput.value);
+        if (!has || t < payDueCents) { e.preventDefault(); payInput.focus(); return false; }
+
+        byId('pay-f-tendered').value = (t / 100).toFixed(2);
+        byId('pay-f-change').value   = ((t - payDueCents) / 100).toFixed(2);
+        setTimeout(() => { byId('pay-confirm').disabled = true; byId('pay-confirm').textContent = 'Saving…'; }, 0);
+        return true;
+    }
+
+    // Esc closes the payment modal first, then any open panel
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        if (!payModal.hidden) { closePayModal(); return; }
+        const id = openPanelId();
+        if (id) closePanel(id);
+    });
 
     // ── CALL STAFF NOTIFICATION SYSTEM ───────────────────────────────────────
     let pendingCallStaff = [];
@@ -703,31 +1086,31 @@
                 playCallChime();
             });
 
-            const badge = document.getElementById('staff-call-badge');
-            const count = document.getElementById('staff-call-count');
+            const badge = byId('staff-call-badge');
+            const count = byId('staff-call-count');
             if (pendingCallStaff.length > 0) {
                 badge.style.display = '';
                 count.textContent   = pendingCallStaff.length;
             } else {
                 badge.style.display = 'none';
             }
-        } catch(e) {
+        } catch (e) {
             console.error('Call staff poll error:', e);
         }
     }
 
     function showStaffToast(call) {
-        const stack = document.getElementById('staff-toast-stack');
+        const stack = byId('staff-toast-stack');
         const toast = document.createElement('div');
         toast.className = 'staff-toast';
         toast.id = `staff-toast-${call.id}`;
         toast.innerHTML = `
-            <span class="staff-toast-icon">🔔</span>
+            <span class="staff-toast-icon"><i class="fa-solid fa-bell"></i></span>
             <div class="staff-toast-body">
-                <div class="staff-toast-title">Customer calling — ${call.tableNumber ? 'Table ' + call.tableNumber : call.orderNumber}</div>
-                <div class="staff-toast-sub">${call.message || 'Requesting staff assistance'}</div>
+                <div class="staff-toast-title">Customer calling — ${esc(call.tableNumber ? 'Table ' + call.tableNumber : call.orderNumber)}</div>
+                <div class="staff-toast-sub">${esc(call.message || 'Requesting staff assistance')}</div>
             </div>
-            <button class="staff-toast-ack" onclick="acknowledgeCall(${call.id}, this)">Go</button>`;
+            <button type="button" class="staff-toast-ack" onclick="acknowledgeCall(${call.id}, this)">Go</button>`;
         stack.appendChild(toast);
         setTimeout(() => toast.remove(), 30000);
     }
@@ -735,16 +1118,16 @@
     function showStaffBanner() {
         if (!pendingCallStaff.length) return;
         currentCallData = pendingCallStaff[0];
-        document.getElementById('staff-notif-title').textContent =
-            `🔔 Customer calling — ${currentCallData.tableNumber ? 'Table ' + currentCallData.tableNumber : currentCallData.orderNumber}`;
-        document.getElementById('staff-notif-sub').textContent =
+        byId('staff-notif-title').innerHTML =
+            `<i class="fa-solid fa-bell"></i> Customer calling — ${esc(currentCallData.tableNumber ? 'Table ' + currentCallData.tableNumber : currentCallData.orderNumber)}`;
+        byId('staff-notif-sub').textContent =
             currentCallData.message || 'Requesting staff for payment';
-        document.getElementById('staff-notif-banner').style.display = '';
+        byId('staff-notif-banner').style.display = '';
         document.querySelector('.orders-page').style.marginTop = '64px';
     }
 
     function dismissNotif() {
-        document.getElementById('staff-notif-banner').style.display = 'none';
+        byId('staff-notif-banner').style.display = 'none';
         document.querySelector('.orders-page').style.marginTop = '';
     }
 
@@ -761,13 +1144,13 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
-        } catch(e) { /* silent */ }
+        } catch (e) { /* silent */ }
 
         pendingCallStaff = pendingCallStaff.filter(c => c.id !== callId);
-        document.getElementById(`staff-toast-${callId}`)?.remove();
+        byId(`staff-toast-${callId}`)?.remove();
 
-        const badge = document.getElementById('staff-call-badge');
-        const count = document.getElementById('staff-call-count');
+        const badge = byId('staff-call-badge');
+        const count = byId('staff-call-count');
         if (pendingCallStaff.length > 0) {
             count.textContent = pendingCallStaff.length;
         } else {
@@ -791,13 +1174,121 @@
                 osc.start(t);
                 osc.stop(t + 0.35);
             });
-        } catch(e) {}
+        } catch (e) {}
     }
 
+    // ── AUTOMATIC RECEIPT PRINTING ───────────────────────────────────────────
+    // Flow: paid -> status "printing" -> animation -> CompletePrint -> "pending" (Accept Order)
+    const RECEIPT_DATA   = @Json.Serialize(receiptData);
+    const PRINTING_IDS   = @Json.Serialize(printingIds);
+    const RECEIPT_MS     = 3000;   // paper feed duration (keep in sync with rpFeed in orders.css)
+    const RECEIPT_DONE   = 900;    // "printed" confirmation before the card leaves
+
+    const printSeen  = new Set();
+    const printQueue = [];
+    let   printBusy  = false;
+
+    // Cross-tab guard: another terminal showing the same order won't animate it twice
+    function claimPrint(id) {
+        const k = `rcpt-claim-${id}`;
+        try {
+            if (Date.now() - (+localStorage.getItem(k) || 0) < 8000) return false;
+            localStorage.setItem(k, Date.now());
+        } catch (e) {}
+        return true;
+    }
+
+    function queueReceipt(id) {
+        if (printSeen.has(id) || !claimPrint(id)) return;
+        printSeen.add(id);
+        printQueue.push(id);
+        if (!printBusy) runPrintQueue();
+    }
+
+    async function runPrintQueue() {
+        printBusy = true;
+        while (printQueue.length) {
+            const id = printQueue.shift();
+            const ok = await printReceipt(id);
+            if (!ok) {
+                printSeen.delete(id);
+                try { localStorage.removeItem(`rcpt-claim-${id}`); } catch (e) {}
+            }
+        }
+        printBusy = false;
+    }
+
+    function buildReceiptCard(id) {
+        const d     = RECEIPT_DATA[id] || {};
+        const items = d.items || [];
+        const lines = items.slice(0, 3).map(i =>
+            `<div class="rp-line"><span>${i.qty}× ${esc(i.name)}</span><span>${peso(i.price)}</span></div>`).join('')
+            + (items.length > 3 ? `<div class="rp-line rp-mute"><span>+${items.length - 3} more</span></div>` : '');
+
+        const discountLines = d.discountType
+            ? `<div class="rp-line rp-mute"><span>Subtotal</span><span>${peso((d.total || 0) + (d.discountAmount || 0))}</span></div>
+               <div class="rp-line"><span>${esc(d.discountType)} discount</span><span>−${peso(d.discountAmount)}</span></div>`
+            : '';
+
+        const card = document.createElement('div');
+        card.className = 'rp-card';
+        card.innerHTML = `
+            <div class="rp-head"><span class="rp-dot"></span><span class="rp-label">Printing receipt…</span>
+                <span class="rp-order">#${esc(d.orderNumber || id)}</span></div>
+            <div class="rp-printer"><div class="rp-slot"></div></div>
+            <div class="rp-window"><div class="rp-paper">
+                <div class="rp-brand">OMS CAFE</div>
+                <div class="rp-line rp-mute"><span>Order #${esc(d.orderNumber || id)}</span></div>
+                <div class="rp-line rp-mute"><span>${esc(d.type || '')}${d.table ? ' · ' + esc(d.table) : ''}</span></div>
+                <div class="rp-rule"></div>${lines}<div class="rp-rule"></div>
+                ${discountLines}
+                <div class="rp-line rp-total"><span>TOTAL</span><span>${peso(d.total)}</span></div>
+                <div class="rp-thanks">Thank you!</div>
+            </div></div>`;
+        return card;
+    }
+
+    async function completePrint(id) {
+        const token = document.querySelector('input[name=__RequestVerificationToken]')?.value || '';
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const res = await fetch('?handler=CompletePrint', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ orderId: id, __RequestVerificationToken: token })
+                });
+                if (res.ok) return true;
+            } catch (e) {}
+            await sleep(600);
+        }
+        return false;
+    }
+
+    async function printReceipt(id) {
+        const card = buildReceiptCard(id);
+        byId('receipt-dock').appendChild(card);
+        requestAnimationFrame(() => card.classList.add('rp-run'));
+
+        await sleep(RECEIPT_MS);
+        const ok = await completePrint(id);
+
+        if (ok) {
+            card.classList.add('rp-done');
+            card.querySelector('.rp-label').textContent = 'Receipt printed ✓';
+            syncOrderStatuses();
+            await sleep(RECEIPT_DONE);
+            try { localStorage.removeItem(`rcpt-claim-${id}`); } catch (e) {}
+        }
+        card.classList.add('rp-leave');
+        await sleep(300);
+        card.remove();
+        return ok;
+    }
 
     // ── INIT ──────────────────────────────────────────────────────────────────
+    PRINTING_IDS.forEach(queueReceipt);
     syncOrderStatuses();
     pollCallStaffNotifications();
-    setInterval(syncOrderStatuses,            5000);
-    setInterval(pollCallStaffNotifications,   4000);
+    setInterval(syncOrderStatuses,          5000);
+    setInterval(pollCallStaffNotifications, 4000);
 </script>

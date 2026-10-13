@@ -17,7 +17,13 @@ namespace OmsCafe.Pages.TakeOut
 
         public async Task OnGetAsync()
         {
-            // ── Categories ────────────────────────────────────────────────
+            // ── Philippine Time ────────────────────────────────────────────
+            var phTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila");
+            var now = TimeOnly.FromDateTime(
+                TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, phTimeZone)
+            );
+
+            // ── Categories ─────────────────────────────────────────────────
             var cats = await _db.Categories
                 .Where(c => c.IsActive && !c.IsDeleted)
                 .OrderBy(c => c.DisplayOrder)
@@ -29,8 +35,6 @@ namespace OmsCafe.Pages.TakeOut
                 .ToListAsync();
 
             // ── Menu Items ─────────────────────────────────────────────────
-            var now = TimeOnly.FromDateTime(DateTime.Now);
-
             var menuItems = await _db.MenuItems
                 .Include(m => m.Category)
                 .Include(m => m.MenuItemCustomizations)
@@ -47,6 +51,26 @@ namespace OmsCafe.Pages.TakeOut
                     .ThenBy(m => m.DisplayOrder)
                 .ToListAsync();
 
+            // ── If nothing came back, retry without time filter ────────────
+            // (safety net: surfaces items even if time data is misconfigured)
+            if (!menuItems.Any())
+            {
+                menuItems = await _db.MenuItems
+                    .Include(m => m.Category)
+                    .Include(m => m.MenuItemCustomizations)
+                        .ThenInclude(mc => mc.Customization)
+                            .ThenInclude(c => c.Options)
+                    .Include(m => m.MenuItemAddons)
+                        .ThenInclude(ma => ma.Addon)
+                    .Where(m => m.IsAvailable
+                             && m.Category.IsActive
+                             && !m.Category.IsDeleted)
+                    .OrderBy(m => m.Category.DisplayOrder)
+                        .ThenBy(m => m.DisplayOrder)
+                    .ToListAsync();
+            }
+
+            // ── Project to DTOs ────────────────────────────────────────────
             var itemsDto = menuItems.Select(m => new {
                 id = m.Id,
                 cat = m.CategoryId,
@@ -62,7 +86,7 @@ namespace OmsCafe.Pages.TakeOut
                     .Select(mc => new {
                         id = mc.Customization.Id,
                         name = mc.Customization.Name,
-                        type = mc.Customization.Type,       // "Radio" or "Checkbox"
+                        type = mc.Customization.Type,
                         required = mc.Customization.IsRequired,
                         options = mc.Customization.Options
                             .OrderBy(o => o.DisplayOrder)

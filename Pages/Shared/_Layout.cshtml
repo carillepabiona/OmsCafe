@@ -3,6 +3,15 @@
     bool isAdmin = path.StartsWith("/Admin");
     bool isCashier = path.StartsWith("/Cashier");
     bool isLogin = path == "/" || path.Contains("Login");
+
+    // Username of the logged-in user
+    var username = User.Identity?.Name
+                   ?? Context.Session.GetString("Username")
+                   ?? "User";
+
+    var initials = username.Length >= 2
+        ? username.Substring(0, 2).ToUpper()
+        : username.ToUpper();
 }
 
 <!DOCTYPE html>
@@ -21,7 +30,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/WebPOSCafe.styles.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/OmsCafe.styles.css" asp-append-version="true" />
 </head>
 
 <body>
@@ -35,7 +44,7 @@
 
                 <div class="sidebar-logo">
                     <div class="sidebar-wordmark">
-                        <span class="sidebar-icon">☕</span>
+                       <span class="sidebar-icon"><i class="fa-solid fa-mug-saucer"></i></span>
                         <span class="sidebar-name">Verso Cafe</span>
                     </div>
                     <div class="sidebar-sub">
@@ -97,10 +106,6 @@
                             <i class="ti ti-armchair" aria-hidden="true"></i>
                             Tables
                         </a>
-                        <a asp-page="/Cashier/TakeOutQueue" class="nav-item @(path.Contains("TakeOutQueue") ? "active" : "")">
-                            <i class="ti ti-package" aria-hidden="true"></i>
-                            Take-Out Queue
-                        </a>
                         <a asp-page="/Cashier/TransactionHistory" class="nav-item @(path.Contains("TransactionHistory") ? "active" : "")">
                             <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
                             Transaction History
@@ -109,11 +114,11 @@
 
                 </nav>
 
-                <div class="sidebar-footer">
+               <div class="sidebar-footer">
                     <div class="user-chip">
-                        <div class="user-avatar">AD</div>
+                        <div class="user-avatar">@initials</div>
                         <div class="user-info">
-                            <p class="user-name">Welcome, Admin</p>
+                            <p class="user-name">Welcome, @username</p>
                             <span class="user-role">
                                 @if (isAdmin)
                                 {

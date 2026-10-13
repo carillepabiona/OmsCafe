@@ -111,10 +111,10 @@
             cleaning  : 'ts-cleaning'
         };
         const STATUS_ICON = {
-            available : '✅',
-            occupied  : '🪑',
-            reserved  : '🔖',
-            cleaning  : '🧹'
+            available : 'fa-solid fa-circle-check',
+            occupied  : 'fa-solid fa-chair',
+            reserved  : 'fa-solid fa-bookmark',
+            cleaning  : 'fa-solid fa-broom'
         };
         const ORDER_STATUS_CLASS = {
             pending   : 'os-pending',
@@ -180,7 +180,7 @@
             strip.innerHTML = tables.map(t => `
                 <div class="cd-table-chip ${STATUS_CLASS[t.status.toLowerCase()] || 'ts-available'}"
                      title="Table ${t.number} — ${t.status} (${t.seats} seats)">
-                    <span class="chip-icon">${STATUS_ICON[t.status.toLowerCase()] || '✅'}</span>
+                    <span class="chip-icon"><i class="${STATUS_ICON[t.status.toLowerCase()] || 'fa-solid fa-circle-check'}"></i></span>
                     <span class="chip-num">T${t.number}</span>
                     <span class="chip-status">${t.status}</span>
                 </div>

@@ -1,0 +1,343 @@
+﻿/* ════════════════════════════════════════════════════════════
+   VERSO CAFE — LANDING (Get Started) SCREEN
+   Add to wwwroot/css/landing.css and link it AFTER customer-menu.css
+   All variables are scoped to .landing so nothing else is affected.
+   ════════════════════════════════════════════════════════════ */
+
+body.landing-open {
+    overflow: hidden;
+}
+
+.landing {
+    --l-orange: #e47835;
+    --l-orange-deep: #c4581a;
+    --l-ink: #2a1a0f;
+    --l-ink-soft: #6f5a4b;
+    --l-paper: #fffaf5;
+    --l-line: rgba(42, 26, 15, 0.12);
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    flex-direction: column;
+    background: var(--l-orange);
+    color: var(--l-ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow: hidden;
+    transition: opacity .35s ease, transform .35s ease;
+}
+
+    .landing.open {
+        display: flex;
+    }
+
+    .landing.leaving {
+        opacity: 0;
+        transform: translateY(-16px);
+        pointer-events: none;
+    }
+
+/* ── Scrolling area (hero + sheet) ── */
+.landing-scroll {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* ── Top bar ── */
+.landing-top {
+    display: flex;
+    align-items: center;
+    padding: 1.1rem 1.5rem 0;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.landing-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #fff;
+}
+
+.landing-brand-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #fff;
+}
+
+/* ── Hero: the table number is the memorable element ── */
+.landing-hero {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 1.5rem 1.5rem 0;
+    color: #fff;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    column-gap: 1rem;
+}
+
+.landing-hero-copy {
+    padding-bottom: 2.25rem;
+}
+
+    .landing-hero-copy h1 {
+        font-family: 'Poppins', sans-serif;
+        font-weight: 800;
+        font-size: clamp(1.9rem, 8vw, 2.7rem);
+        line-height: 1.08;
+        letter-spacing: -0.02em;
+        margin-bottom: .75rem;
+    }
+
+    .landing-hero-copy p {
+        font-size: 1rem;
+        line-height: 1.5;
+        max-width: 24ch;
+        color: rgba(255, 255, 255, .92);
+    }
+
+.landing-table-num {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: clamp(7rem, 34vw, 11rem);
+    line-height: .8;
+    letter-spacing: -0.06em;
+    color: var(--l-paper);
+    padding-bottom: 1.6rem;
+    text-shadow: 6px 6px 0 var(--l-orange-deep);
+    animation: tableStamp .55s cubic-bezier(.2, 1.4, .4, 1) .15s both;
+}
+
+@keyframes tableStamp {
+    from {
+        transform: scale(1.35) rotate(-6deg);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1) rotate(0);
+        opacity: 1;
+    }
+}
+
+/* ── White sheet ── */
+.landing-sheet {
+    background: var(--l-paper);
+    border-radius: 28px 28px 0 0;
+    min-height: 60vh;
+    padding: 1.75rem 0 7.5rem;
+    box-shadow: 0 -10px 30px rgba(42, 26, 15, .12);
+}
+
+.landing-sheet-inner {
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.landing-section-title {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin: 0 1.5rem .9rem;
+}
+
+/* ── How it works (a real sequence, so it gets a connected line) ── */
+.landing-steps {
+    list-style: none;
+    margin: 0 1.5rem 2rem;
+    padding: 0;
+    position: relative;
+}
+
+    .landing-steps::before {
+        content: '';
+        position: absolute;
+        left: 19px;
+        top: 22px;
+        bottom: 22px;
+        width: 2px;
+        background: var(--l-line);
+    }
+
+.landing-step {
+    position: relative;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 8px 0;
+}
+
+.landing-step-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid var(--l-orange);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    z-index: 1;
+}
+
+.landing-step strong {
+    display: block;
+    font-size: .95rem;
+    margin-bottom: 2px;
+}
+
+.landing-step span {
+    font-size: .85rem;
+    color: var(--l-ink-soft);
+    line-height: 1.45;
+}
+
+/* ── Popular items scroller ── */
+.landing-featured {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 4px 1.5rem 10px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+}
+
+    .landing-featured::-webkit-scrollbar {
+        display: none;
+    }
+
+.landing-fav {
+    flex: 0 0 150px;
+    scroll-snap-align: start;
+    text-align: left;
+    background: #fff;
+    border: 1px solid var(--l-line);
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    color: inherit;
+    transition: transform .15s ease;
+}
+
+    .landing-fav:active {
+        transform: scale(.97);
+    }
+
+.landing-fav-img {
+    height: 100px;
+    background: #fdeadb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+}
+
+    .landing-fav-img img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+.landing-fav-body {
+    padding: 10px 12px 12px;
+}
+
+.landing-fav-name {
+    font-weight: 600;
+    font-size: .85rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.1em;
+}
+
+.landing-fav-price {
+    margin-top: 4px;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: .9rem;
+    color: var(--l-orange-deep);
+}
+
+/* ── Sticky CTA ── */
+.landing-cta-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 14px 1.5rem calc(14px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to top, var(--l-paper) 70%, rgba(255, 250, 245, 0));
+}
+
+.landing-cta {
+    display: block;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 17px;
+    border: none;
+    border-radius: 16px;
+    background: var(--l-ink);
+    color: #fff;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(42, 26, 15, .28);
+    transition: transform .15s ease, background .2s ease;
+}
+
+    .landing-cta:hover {
+        background: #43291a;
+    }
+
+    .landing-cta:active {
+        transform: scale(.98);
+    }
+
+    .landing-cta:focus-visible,
+    .landing-fav:focus-visible {
+        outline: 3px solid var(--l-orange);
+        outline-offset: 3px;
+    }
+
+.landing-foot {
+    text-align: center;
+    font-size: .75rem;
+    color: var(--l-ink-soft);
+    margin-top: 8px;
+}
+
+/* ── Larger screens: keep it phone-shaped & centred ── */
+@media (min-width: 700px) {
+    .landing-sheet {
+        border-radius: 28px;
+        margin: 0 auto 2rem;
+        max-width: 640px;
+        min-height: 0;
+        padding-bottom: 8rem;
+    }
+
+    .landing-fav {
+        flex-basis: 170px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing, .landing-table-num, .landing-fav {
+        animation: none;
+        transition: none;
+    }
+}

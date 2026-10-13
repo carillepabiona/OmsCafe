@@ -110,7 +110,7 @@
                             </td>
                             <td style="padding:10px 12px;">
                                 <span class="order-type-badge @p.Type">
-                                    @(p.Type == "dine-in" ? "🍽️ Dine-In" : "🛍️ Take-Out")
+                                    @Html.Raw(p.Type == "dine-in" ? "<i class='fa-solid fa-utensils'></i> Dine-In" : "<i class='fa-solid fa-bag-shopping'></i> Take-Out")
                                 </span>
                             </td>
                             <td style="padding:10px 12px;font-weight:600;color:#E8611A;">
@@ -120,6 +120,7 @@
                                 @p.PaidAt.ToString("MMM dd, yyyy hh:mm tt")
                             </td>
                             <td style="padding:10px 12px;">
+                                
                                 <button class="action-btn btn-print"
                                         style="padding:6px 12px;font-size:0.8rem;"
                                         onclick='openPrintPreview(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new
@@ -129,10 +130,13 @@
                                             tableNumber = p.TableNumber ?? "",
                                             type = p.Type ?? "",
                                             amount = p.Amount.ToString("0.00"),
+                                            cashReceived = p.CashReceived?.ToString("0.00") ?? "",
+                                            changeGiven = p.ChangeGiven?.ToString("0.00") ?? "",
                                             paidAt = p.PaidAt.ToString("MMM dd, yyyy hh:mm tt"),
-                                            items = System.Text.Json.JsonSerializer.Deserialize<object>(Model.GetItemsJson(p.OrderId))
+                                            items = System.Text.Json.JsonSerializer.Deserialize<object>(
+                                                Model.GetItemsJson(p.OrderId))
                                         })))'>
-                                    🖨 Print
+                                    <i class="fa-solid fa-print"></i> Print
                                 </button>
                             </td>
                         </tr>
@@ -172,7 +176,7 @@
             <button onclick="triggerPrint()"
                     class="action-btn btn-print"
                     style="flex:1;justify-content:center;padding:10px;">
-                🖨 Print Receipt
+                <i class="fa-solid fa-print"></i> Print Receipt
             </button>
             <button onclick="closePrintPreview()"
                     class="action-btn btn-cancel"
@@ -218,6 +222,7 @@
     }
 
     // ── PRINT PREVIEW ──────────────────────────────────────────────────────────
+    
     function openPrintPreview(data) {
         const W = 38;
 
@@ -228,36 +233,57 @@
         };
 
         const padRow = (left, right) => {
-            left  = left  || '';
+            left = left || '';
             right = right || '';
             const gap = Math.max(1, W - left.length - right.length);
             return left + ' '.repeat(gap) + right;
         };
 
-        const divider  = '- - - - - - - - - - - - - - - - - - -';
+        const divider = '- - - - - - - - - - - - - - - - - - -';
         const solidDiv = '--------------------------------------';
 
-        // Build items lines
+        // Build item lines
         let itemLines = [];
         const items = data.items || [];
+
         if (items.length) {
             items.forEach(item => {
                 const label = `${item.quantity}x ${item.name}`;
-                const price = `\u20B1${parseFloat(item.price).toFixed(2)}`;
+                const price = `₱${parseFloat(item.price).toFixed(2)}`;
+
                 itemLines.push(padRow(label, price));
-                if (item.customization)       itemLines.push(`   \u2192 ${item.customization}`);
-                if (item.specialInstructions) itemLines.push(`   \uD83D\uDCDD ${item.specialInstructions}`);
+
+                if (item.customization)
+                    itemLines.push(`   → ${item.customization}`);
+
+                if (item.specialInstructions)
+                    itemLines.push(`   Note: ${item.specialInstructions}`);
             });
         } else {
             itemLines.push('(no item details available)');
         }
 
-        const total    = parseFloat(data.amount) || 0;
-        const typeStr  = data.type === 'dine-in' ? 'Dine In' : 'Take Out';
-        const tableStr = data.tableNumber && data.tableNumber !== '' && data.tableNumber !== '—'
-                         ? `Table: ${data.tableNumber}` : '';
+        const total = parseFloat(data.amount) || 0;
 
-        // Build as array of lines — no indentation issues
+        const cashReceived =
+            data.cashReceived !== '' && data.cashReceived != null
+                ? parseFloat(data.cashReceived)
+                : null;
+
+        const changeGiven =
+            data.changeGiven !== '' && data.changeGiven != null
+                ? parseFloat(data.changeGiven)
+                : null;
+
+        const typeStr = data.type === 'dine-in' ? 'Dine In' : 'Take Out';
+
+        const tableStr =
+            data.tableNumber &&
+            data.tableNumber !== '' &&
+            data.tableNumber !== '—'
+                ? `Table: ${data.tableNumber}`
+                : '';
+
         const lines = [
             center('VERSO'),
             center('CAFE'),
@@ -269,12 +295,19 @@
             'Employee: Cashier',
             'POS: POS 1',
             divider,
-            typeStr + (tableStr ? `\n${tableStr}` : ''),
-            `Customer: ${data.customerName || '\u2014'}`,
+            typeStr,
+            ...(tableStr ? [tableStr] : []),
+            `Customer: ${data.customerName || '—'}`,
             divider,
             ...itemLines,
             solidDiv,
-            padRow('Total', `\u20B1${total.toFixed(2)}`),
+            padRow('Total', `₱${total.toFixed(2)}`),
+            ...(cashReceived !== null && Number.isFinite(cashReceived)
+                ? [padRow('Cash Received', `₱${cashReceived.toFixed(2)}`)]
+                : []),
+            ...(changeGiven !== null && Number.isFinite(changeGiven)
+                ? [padRow('Change', `₱${changeGiven.toFixed(2)}`)]
+                : []),
             solidDiv,
             '',
             center('Where Every Cup Tells a Verse'),
@@ -284,17 +317,17 @@
 
         const text = lines.join('\n');
 
-        // Render in modal as <pre> so spacing is preserved without pre-wrap artifacts
+        // Receipt preview
         document.getElementById('receipt-content').innerHTML =
             `<pre style="margin:0;font-family:inherit;font-size:inherit;white-space:pre;">${escapeHtml(text)}</pre>`;
 
-        // Printable copy
+        // Printable receipt
         document.getElementById('printable-receipt').innerHTML =
             `<pre style="margin:0;font-family:inherit;font-size:inherit;white-space:pre;">${escapeHtml(text)}</pre>`;
 
-        // Show overlay — must set both display and flex
+        // Show preview modal
         const overlay = document.getElementById('print-preview-overlay');
-        overlay.style.display    = 'flex';
+        overlay.style.display = 'flex';
         overlay.style.alignItems = 'center';
         overlay.style.justifyContent = 'center';
     }

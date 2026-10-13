@@ -68,7 +68,7 @@
                 <!-- Type filter -->
                 <select name="typeFilter" class="filter-select" onchange="this.form.submit()">
                     <option value="all" selected="@(Model.TypeFilter == "all" ? "selected" : null)">All Types</option>
-                    <option value="dine-in" selected="@(Model.TypeFilter == "dine-in" ? "selected" : null)">🍽️ Dine-In</option>
+                    <option value="dine-in" selected="@(Model.TypeFilter == "dine-in" ? "selected" : null)">🍽 Dine-In</option>
                     <option value="take-out" selected="@(Model.TypeFilter == "take-out" ? "selected" : null)">🛍️ Take-Out</option>
                 </select>
             </div>
@@ -121,7 +121,7 @@
                             <td>@(string.IsNullOrEmpty(t.TableNumber) ? "—" : t.TableNumber)</td>
                             <td>
                                 <span class="order-type-badge @t.Type">
-                                    @(t.Type == "dine-in" ? "🍽️ Dine-In" : "🛍️ Take-Out")
+                                    @Html.Raw(t.Type == "dine-in" ? "<i class='fa-solid fa-utensils'></i> Dine-In" : "<i class='fa-solid fa-bag-shopping'></i> Take-Out")
                                 </span>
                             </td>
                             <td>@t.Items.Sum(i => i.Quantity) items</td>
@@ -143,20 +143,32 @@
                                     <div class="tx-items-grid">
                                         @foreach (var item in t.Items)
                                         {
-                                            <div class="tx-item-row">
-                                                <span class="tx-item-qty">@item.Quantity×</span>
-                                                <div class="tx-item-info">
-                                                    <span class="tx-item-name">@item.Name</span>
-                                                    @if (!string.IsNullOrEmpty(item.Customization))
-                                                    {
-                                                        <span class="tx-item-meta">→ @item.Customization</span>
-                                                    }
-                                                    @if (!string.IsNullOrEmpty(item.SpecialInstructions))
-                                                    {
-                                                        <span class="tx-item-meta">📝 @item.SpecialInstructions</span>
-                                                    }
-                                                </div>
-                                                <span class="tx-item-price">₱@item.Price.ToString("0.00")</span>
+                                            <div class="tx-item-row" style="display:flex;align-items:center;flex-wrap:nowrap;gap:10px;white-space:nowrap;overflow-x:auto;">
+                                                @if (!string.IsNullOrEmpty(item.ImageBase64))
+                                                {
+                                                    <img src="data:@item.ImageMimeType;base64,@item.ImageBase64" alt="@item.Name"
+                                                         style="width:28px;height:28px;object-fit:contain;border-radius:6px;background:#f5f0ea;padding:1px;flex-shrink:0;" />
+                                                }
+                                                else
+                                                {
+                                                    <div style="width:28px;height:28px;border-radius:6px;background:#f5f0ea;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#999;font-size:11px;">
+                                                        <i class="fa-solid fa-mug-hot"></i>
+                                                    </div>
+                                                }
+
+                                                <span class="tx-item-qty" style="flex-shrink:0;">@item.Quantity×</span>
+                                                <span class="tx-item-name" style="flex-shrink:0;font-weight:600;">@item.Name</span>
+
+                                                @if (!string.IsNullOrEmpty(item.Customization))
+                                                {
+                                                    <span class="tx-item-meta" style="flex-shrink:0;color:var(--text-mute,#888);">→ @item.Customization</span>
+                                                }
+                                                @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                                {
+                                                    <span class="tx-item-meta" style="flex-shrink:0;color:var(--text-mute,#888);"><i class="fa-solid fa-note-sticky"></i> @item.SpecialInstructions</span>
+                                                }
+
+                                                <span class="tx-item-price" style="flex-shrink:0;margin-left:auto;font-weight:700;">₱@item.Price.ToString("0.00")</span>
                                             </div>
                                         }
                                     </div>

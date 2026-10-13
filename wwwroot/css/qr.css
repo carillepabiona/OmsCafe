@@ -1,0 +1,254 @@
+﻿.btn-print, .btn-add {
+    border: none;
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-print {
+    background: #E8611A;
+    color: #fff;
+}
+
+.btn-add {
+    background: #fff7ed;
+    color: #E8611A;
+    border: 1px solid #fed7aa;
+    margin-right: 8px;
+}
+
+    .btn-add:hover {
+        background: #E8611A;
+        color: #fff;
+    }
+
+.qr-alert {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+
+    .qr-alert.ok {
+        background: #f0fdf4;
+        color: #15803d;
+        border: 1px solid #bbf7d0;
+    }
+
+    .qr-alert.err {
+        background: #fef2f2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+
+.qr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.qr-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+    display: flex;
+    flex-direction: column;
+}
+
+    .qr-card img {
+        width: 200px;
+        height: 200px;
+        object-fit: contain;
+        align-self: center;
+    }
+
+.table-title {
+    font-size: 24px;
+    font-weight: bold;
+    margin-top: 15px;
+    color: #E8611A;
+}
+
+.scan-text {
+    margin-top: 10px;
+    color: #666;
+}
+
+.qr-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #f3f4f6;
+}
+
+    .qr-actions button {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        color: #374151;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+        .qr-actions button:hover {
+            background: #f9fafb;
+        }
+
+    .qr-actions .danger {
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+
+        .qr-actions .danger:hover {
+            background: #fef2f2;
+        }
+
+.qr-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    background: #fff;
+    border-radius: 12px;
+    color: #9ca3af;
+}
+
+    .qr-empty i {
+        font-size: 36px;
+        color: #d1d5db;
+        margin-bottom: 12px;
+        display: block;
+    }
+
+/* Dialogs */
+/* Dialogs */
+dialog.qr-dialog {
+    /* Explicit centering, independent of any global resets */
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    height: fit-content;
+    /* Responsive sizing */
+    width: min(420px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    border: none;
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.25);
+    box-sizing: border-box;
+}
+
+    dialog.qr-dialog[open] {
+        animation: qr-dialog-in .18s ease-out;
+    }
+
+    dialog.qr-dialog::backdrop {
+        background: rgba(17,24,39,.45);
+        backdrop-filter: blur(2px);
+    }
+
+@keyframes qr-dialog-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.qr-dialog h3 {
+    margin: 0 0 6px;
+    font-size: 17px;
+    color: #111827;
+}
+
+.qr-dialog p {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.qr-dialog label {
+    display: block;
+    font-size: 13px;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.qr-dialog input[type=number] {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 16px; /* 16px prevents iOS from zooming on focus */
+    box-sizing: border-box;
+}
+
+.qr-dialog input:focus {
+    outline: none;
+    border-color: #E8611A;
+}
+
+.dlg-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+    .dlg-actions button {
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+    }
+
+    .dlg-actions .primary {
+        background: #E8611A;
+        color: #fff;
+        border-color: #E8611A;
+    }
+
+    .dlg-actions .danger {
+        background: #dc2626;
+        color: #fff;
+        border-color: #dc2626;
+    }
+
+/* Small phones: stack the buttons full width */
+@media (max-width: 480px) {
+    dialog.qr-dialog {
+        padding: 20px 16px;
+    }
+
+    .dlg-actions {
+        flex-direction: column-reverse;
+    }
+
+        .dlg-actions button {
+            width: 100%;
+            padding: 11px 16px;
+            font-size: 14px;
+        }
+}

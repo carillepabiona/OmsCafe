@@ -80,6 +80,9 @@ namespace OmsCafe.Data
             modelBuilder.Entity<Addon>()
                 .Property(a => a.Price).HasColumnType("decimal(10,2)");
 
+           /* modelBuilder.Entity<Order>()
+                .Property(o => o.DiscountAmount).HasColumnType("decimal(10,2)");*/
+
             // Soft-delete filter for Categories
             modelBuilder.Entity<Category>()
                 .HasQueryFilter(c => !c.IsDeleted);

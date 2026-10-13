@@ -2,20 +2,13 @@
    TABLE MANAGEMENT  — Responsive (mobile / tablet / desktop)
    ════════════════════════════════════════════════════════════ */
 
-/* ── CSS Variables (status palette) ── */
 :root {
     --tbl-available: #22c55e;
     --tbl-occupied: #e8611a;
-    --tbl-reserved: #3b82f6;
-    --tbl-cleaning: #f59e0b;
     --tbl-available-bg: #f0fdf4;
     --tbl-occupied-bg: #fff7f3;
-    --tbl-reserved-bg: #eff6ff;
-    --tbl-cleaning-bg: #fffbeb;
     --tbl-available-border: #bbf7d0;
     --tbl-occupied-border: #fed7b8;
-    --tbl-reserved-border: #bfdbfe;
-    --tbl-cleaning-border: #fde68a;
     --tbl-radius: 16px;
     --tbl-shadow: 0 2px 12px rgba(0,0,0,0.07);
     --tbl-shadow-h: 0 6px 24px rgba(0,0,0,0.13);
@@ -26,7 +19,7 @@
 /* ── Summary bar ── */
 .tbl-summary {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
     margin-bottom: 20px;
 }
@@ -59,16 +52,6 @@
         border-color: var(--tbl-occupied-border);
     }
 
-    .tbl-stat-card.reserved {
-        background: var(--tbl-reserved-bg);
-        border-color: var(--tbl-reserved-border);
-    }
-
-    .tbl-stat-card.cleaning {
-        background: var(--tbl-cleaning-bg);
-        border-color: var(--tbl-cleaning-border);
-    }
-
 .tbl-stat-num {
     font-size: 2rem;
     font-weight: 700;
@@ -82,14 +65,6 @@
 
 .tbl-stat-card.occupied .tbl-stat-num {
     color: var(--tbl-occupied);
-}
-
-.tbl-stat-card.reserved .tbl-stat-num {
-    color: var(--tbl-reserved);
-}
-
-.tbl-stat-card.cleaning .tbl-stat-num {
-    color: var(--tbl-cleaning);
 }
 
 .tbl-stat-label {
@@ -131,14 +106,6 @@
         background: var(--tbl-occupied);
     }
 
-    .legend-dot.reserved {
-        background: var(--tbl-reserved);
-    }
-
-    .legend-dot.cleaning {
-        background: var(--tbl-cleaning);
-    }
-
 /* ── Table Grid ── */
 .tbl-grid {
     display: grid;
@@ -178,16 +145,6 @@
         border-color: var(--tbl-occupied-border);
     }
 
-    .tbl-card.reserved {
-        background: var(--tbl-reserved-bg);
-        border-color: var(--tbl-reserved-border);
-    }
-
-    .tbl-card.cleaning {
-        background: var(--tbl-cleaning-bg);
-        border-color: var(--tbl-cleaning-border);
-    }
-
 .tbl-card-top {
     display: flex;
     align-items: center;
@@ -206,17 +163,12 @@
     font-size: 1.2rem;
 }
 
-.tbl-seats {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
+.tbl-card.available .tbl-status-icon {
+    color: var(--tbl-available);
 }
 
-.seats-icon {
-    font-size: 0.7rem;
+.tbl-card.occupied .tbl-status-icon {
+    color: var(--tbl-occupied);
 }
 
 .tbl-status-label {
@@ -232,14 +184,6 @@
 
 .tbl-card.occupied .tbl-status-label {
     color: var(--tbl-occupied);
-}
-
-.tbl-card.reserved .tbl-status-label {
-    color: var(--tbl-reserved);
-}
-
-.tbl-card.cleaning .tbl-status-label {
-    color: var(--tbl-cleaning);
 }
 
 /* ── Modal Overlay ── */
@@ -368,20 +312,16 @@
         border-color: var(--tbl-occupied);
     }
 
-    .tbl-status-opt.reserved:hover,
-    .tbl-status-opt.reserved.active {
-        background: var(--tbl-reserved-bg);
-        border-color: var(--tbl-reserved);
-    }
-
-    .tbl-status-opt.cleaning:hover,
-    .tbl-status-opt.cleaning.active {
-        background: var(--tbl-cleaning-bg);
-        border-color: var(--tbl-cleaning);
-    }
-
 .opt-icon {
     font-size: 1.5rem;
+}
+
+.tbl-status-opt.available .opt-icon {
+    color: var(--tbl-available);
+}
+
+.tbl-status-opt.occupied .opt-icon {
+    color: var(--tbl-occupied);
 }
 
 .opt-label {
@@ -412,10 +352,9 @@
    RESPONSIVE
    ════════════════════════════════════════════════════════════ */
 
-/* ── Tablet  (481px – 768px) ── */
+/* ── Tablet (481px – 768px) ── */
 @media (min-width: 481px) and (max-width: 768px) {
     .tbl-summary {
-        grid-template-columns: repeat(2, 1fr);
         gap: 10px;
     }
 
@@ -437,10 +376,9 @@
     }
 }
 
-/* ── Mobile  (≤ 480px) ── */
+/* ── Mobile (≤ 480px) ── */
 @media (max-width: 480px) {
     .tbl-summary {
-        grid-template-columns: repeat(2, 1fr);
         gap: 8px;
         margin-bottom: 14px;
     }
@@ -483,10 +421,6 @@
         font-size: 1rem;
     }
 
-    .tbl-seats {
-        font-size: 0.68rem;
-    }
-
     .tbl-status-label {
         font-size: 0.65rem;
     }
@@ -515,7 +449,6 @@
     }
 
     .tbl-status-options {
-        grid-template-columns: 1fr 1fr;
         gap: 8px;
     }
 
@@ -533,7 +466,7 @@
     }
 }
 
-/* ── Very small  (≤ 360px) ── */
+/* ── Very small (≤ 360px) ── */
 @media (max-width: 360px) {
     .tbl-grid {
         grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));

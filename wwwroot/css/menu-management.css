@@ -102,14 +102,20 @@
 
 .item-thumb {
     position: relative;
-    height: 140px;
-    background: var(--bg);
+    height: 120px;
+    background: #f5f0ea; /* soft neutral backdrop for letterboxing */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 
     .item-thumb img {
         width: 100%;
         height: 100%;
-        object-fit: cover;
+        object-fit: contain; /* was: cover — this was cropping/zooming */
+        object-position: center;
+        padding: 6px; /* small breathing room so it doesn't touch edges */
     }
 
 .item-thumb-placeholder {
@@ -815,10 +821,12 @@
 .img-preview {
     width: 100%;
     max-height: 180px;
-    object-fit: cover;
+    object-fit: contain;
+    background: #f5f0ea;
     border-radius: 10px;
     border: 1px solid #ececec;
     margin-top: 10px;
+    padding: 6px;
 }
 
 /* =========================================================

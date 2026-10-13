@@ -5,6 +5,8 @@
     ViewData["Subtitle"] = "Daily, monthly and yearly sales overview";
 }
 
+<!-- Font Awesome (remove this line if your _Layout already loads it) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
 <link rel="stylesheet" href="~/css/reports.css" />
 
 <!-- ── Filters ──────────────────────────────────────────────────── -->
@@ -16,42 +18,26 @@
     </div>
 
     <div class="rpt-filter-right">
-        <!-- Daily filter -->
         <div class="rpt-filter-group" id="filter-daily">
             <label class="rpt-filter-label">Date</label>
-            <input type="date" class="rpt-input" id="daily-date"
-                   value="@DateTime.Today.ToString("yyyy-MM-dd")"
-                   onchange="loadReport()" />
+            <input type="date" class="rpt-input" id="daily-date" value="@DateTime.Today.ToString("yyyy-MM-dd")" onchange="loadReport()" />
         </div>
-
-        <!-- Monthly filter -->
         <div class="rpt-filter-group" id="filter-monthly" style="display:none">
             <label class="rpt-filter-label">Month</label>
-            <input type="month" class="rpt-input" id="monthly-month"
-                   value="@DateTime.Today.ToString("yyyy-MM")"
-                   onchange="loadReport()" />
+            <input type="month" class="rpt-input" id="monthly-month" value="@DateTime.Today.ToString("yyyy-MM")" onchange="loadReport()" />
         </div>
-
-        <!-- Yearly filter -->
         <div class="rpt-filter-group" id="filter-yearly" style="display:none">
             <label class="rpt-filter-label">Year</label>
             <select class="rpt-input" id="yearly-year" onchange="loadReport()">
                 @for (int y = DateTime.Today.Year; y >= DateTime.Today.Year - 5; y--)
                 {
-                    if (y == DateTime.Today.Year)
-                    {
-                        <option value="@y" selected="selected">@y</option>
-                    }
-                    else
-                    {
-                        <option value="@y">@y</option>
-                    }
+                    if (y == DateTime.Today.Year) { <option value="@y" selected="selected">@y</option> }
+                    else { <option value="@y">@y</option> }
                 }
             </select>
         </div>
-
         <button class="rpt-export-btn" onclick="exportCSV()">
-            <i class="ti ti-download"></i> Export CSV
+            <i class="fa-solid fa-download"></i> Export CSV
         </button>
     </div>
 </div>
@@ -59,38 +45,86 @@
 <!-- ── Summary Cards ─────────────────────────────────────────────── -->
 <div class="rpt-summary-grid" id="summary-grid">
     <div class="rpt-card">
-        <div class="rpt-card-icon orange"><i class="ti ti-receipt"></i></div>
-        <div class="rpt-card-body">
-            <div class="rpt-card-label">Total Orders</div>
-            <div class="rpt-card-val" id="stat-orders">—</div>
-        </div>
+        <div class="rpt-card-icon orange"><i class="fa-solid fa-receipt"></i></div>
+        <div class="rpt-card-body"><div class="rpt-card-label">Total Orders</div><div class="rpt-card-val" id="stat-orders">—</div></div>
     </div>
     <div class="rpt-card">
-        <div class="rpt-card-icon green"><i class="ti ti-cash"></i></div>
-        <div class="rpt-card-body">
-            <div class="rpt-card-label">Total Sales</div>
-            <div class="rpt-card-val" id="stat-sales">—</div>
-        </div>
+        <div class="rpt-card-icon green"><i class="fa-solid fa-peso-sign"></i></div>
+        <div class="rpt-card-body"><div class="rpt-card-label">Total Sales</div><div class="rpt-card-val" id="stat-sales">—</div></div>
     </div>
     <div class="rpt-card">
-        <div class="rpt-card-icon blue"><i class="ti ti-chart-bar"></i></div>
-        <div class="rpt-card-body">
-            <div class="rpt-card-label">Avg Order Value</div>
-            <div class="rpt-card-val" id="stat-avg">—</div>
-        </div>
+        <div class="rpt-card-icon blue"><i class="fa-solid fa-chart-simple"></i></div>
+        <div class="rpt-card-body"><div class="rpt-card-label">Avg Order Value</div><div class="rpt-card-val" id="stat-avg">—</div></div>
     </div>
     <div class="rpt-card">
-        <div class="rpt-card-icon purple"><i class="ti ti-shopping-bag"></i></div>
-        <div class="rpt-card-body">
-            <div class="rpt-card-label">Items Sold</div>
-            <div class="rpt-card-val" id="stat-items">—</div>
+        <div class="rpt-card-icon purple"><i class="fa-solid fa-bag-shopping"></i></div>
+        <div class="rpt-card-body"><div class="rpt-card-label">Items Sold</div><div class="rpt-card-val" id="stat-items">—</div></div>
+    </div>
+</div>
+
+<!-- ── Trend chart ────────────────────────────────────────────────── -->
+<div class="rpt-panel rpt-panel-full">
+    <div class="rpt-panel-header">
+        <div class="rpt-panel-title"><i class="fa-solid fa-chart-line"></i><h3 id="trend-title">Sales by hour</h3></div>
+        <div class="rpt-chart-head-right">
+            <div class="rpt-seg" id="trend-metric">
+                <button class="active" data-metric="sales" onclick="setTrendMetric('sales', this)"><i class="fa-solid fa-peso-sign"></i> Sales</button>
+                <button data-metric="orders" onclick="setTrendMetric('orders', this)"><i class="fa-solid fa-receipt"></i> Orders</button>
+            </div>
+        </div>
+    </div>
+    <div class="rpt-panel-body">
+        <div class="rpt-chart-box" id="trend-box">
+            <canvas id="trend-chart"></canvas>
+            <div class="rpt-chart-empty"><i class="fa-regular fa-chart-bar"></i>No orders for this period</div>
+        </div>
+    </div>
+    <div class="rpt-chart-insights" id="trend-insights"></div>
+</div>
+
+<!-- ── Chart row: top items · payment · order type ───────────────── -->
+<div class="rpt-chart-row">
+    <div class="rpt-panel">
+        <div class="rpt-panel-header">
+            <div class="rpt-panel-title"><i class="fa-solid fa-ranking-star"></i><h3>Top items by quantity</h3></div>
+        </div>
+        <div class="rpt-panel-body">
+            <div class="rpt-chart-box sm" id="items-box">
+                <canvas id="items-chart"></canvas>
+                <div class="rpt-chart-empty"><i class="fa-solid fa-mug-hot"></i>No items sold</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rpt-panel">
+        <div class="rpt-panel-header">
+            <div class="rpt-panel-title"><i class="fa-solid fa-wallet"></i><h3>Payment mix</h3></div>
+        </div>
+        <div class="rpt-panel-body">
+            <div class="rpt-chart-box sm rpt-donut-wrap" id="pay-box">
+                <canvas id="pay-chart"></canvas>
+                <div class="rpt-donut-center" id="pay-center"></div>
+                <div class="rpt-chart-empty"><i class="fa-regular fa-credit-card"></i>No payments</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rpt-panel">
+        <div class="rpt-panel-header">
+            <div class="rpt-panel-title"><i class="fa-solid fa-utensils"></i><h3>Dine-in vs take-out</h3></div>
+        </div>
+        <div class="rpt-panel-body">
+            <div class="rpt-chart-box sm rpt-donut-wrap" id="type-box">
+                <canvas id="type-chart"></canvas>
+                <div class="rpt-donut-center" id="type-center"></div>
+                <div class="rpt-chart-empty"><i class="fa-solid fa-bell-concierge"></i>No orders</div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- ── Top Items ──────────────────────────────────────────────────── -->
+<!-- ── Top Items / Payment tables ─────────────────────────────────── -->
 <div class="rpt-section-row">
-
     <div class="rpt-panel">
         <div class="rpt-panel-header">
             <h3>Top Selling Items</h3>
@@ -98,30 +132,16 @@
         </div>
         <div class="rpt-panel-body">
             <table class="rpt-table" id="top-items-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Item</th>
-                        <th>Qty Sold</th>
-                        <th>Revenue</th>
-                    </tr>
-                </thead>
-                <tbody id="top-items-body">
-                    <tr><td colspan="4" class="rpt-empty">Loading…</td></tr>
-                </tbody>
+                <thead><tr><th>#</th><th>Item</th><th>Qty Sold</th><th>Revenue</th></tr></thead>
+                <tbody id="top-items-body"><tr><td colspan="4" class="rpt-empty">Loading…</td></tr></tbody>
             </table>
         </div>
     </div>
 
     <div class="rpt-panel">
-        <div class="rpt-panel-header">
-            <h3>Sales by Payment Method</h3>
-        </div>
-        <div class="rpt-panel-body" id="payment-breakdown">
-            <div class="rpt-empty">Loading…</div>
-        </div>
+        <div class="rpt-panel-header"><h3>Sales by Payment Method</h3></div>
+        <div class="rpt-panel-body" id="payment-breakdown"><div class="rpt-empty">Loading…</div></div>
     </div>
-
 </div>
 
 <!-- ── Orders Table ───────────────────────────────────────────────── -->
@@ -133,29 +153,30 @@
     <div class="rpt-panel-body rpt-table-scroll">
         <table class="rpt-table" id="orders-table">
             <thead>
-                <tr>
-                    <th>Order #</th>
-                    <th>Customer</th>
-                    <th>Type</th>
-                    <th>Table</th>
-                    <th>Payment</th>
-                    <th>Items</th>
-                    <th>Total</th>
-                    <th>Status</th>
-                    <th>Date & Time</th>
-                </tr>
+                <tr><th>Order #</th><th>Customer</th><th>Type</th><th>Table</th><th>Payment</th><th>Items</th><th>Total</th><th>Status</th><th>Date & Time</th></tr>
             </thead>
-            <tbody id="orders-body">
-                <tr><td colspan="9" class="rpt-empty">Loading…</td></tr>
-            </tbody>
+            <tbody id="orders-body"><tr><td colspan="9" class="rpt-empty">Loading…</td></tr></tbody>
         </table>
     </div>
 </div>
 
 @section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
     let currentPeriod = 'daily';
     let reportData    = [];
+    let lastData      = {};
+    let trendMetric   = 'sales';
+
+    // Statuses left out of the charts (so cancelled orders don't inflate trends).
+    // Set to [] if your API totals include cancelled orders and you want them to match.
+    const CHART_EXCLUDE = ['cancelled'];
+    const PALETTE = ['#ea580c', '#2563eb', '#16a34a', '#7c3aed', '#ca8a04', '#0891b2'];
+    const charts = {};
+
+    Chart.defaults.font.size = 12;
+    Chart.defaults.color = '#6b7280';
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
 
     // ── Period switch ──────────────────────────────────────────────
     function switchPeriod(period, btn) {
@@ -168,40 +189,209 @@
         });
 
         const labels = { daily: 'Today', monthly: 'This Month', yearly: 'This Year' };
-        document.querySelectorAll('.rpt-panel-sub').forEach(el => {
-            if (el.id === 'period-label') el.textContent = labels[period];
-        });
-
+        document.getElementById('period-label').textContent = labels[period];
         loadReport();
     }
 
     // ── Load report via API ────────────────────────────────────────
     async function loadReport() {
         let url = '/api/reports?period=' + currentPeriod;
-
-        if (currentPeriod === 'daily') {
-            url += '&date=' + document.getElementById('daily-date').value;
-        } else if (currentPeriod === 'monthly') {
-            url += '&month=' + document.getElementById('monthly-month').value;
-        } else {
-            url += '&year=' + document.getElementById('yearly-year').value;
-        }
+        if (currentPeriod === 'daily')        url += '&date='  + document.getElementById('daily-date').value;
+        else if (currentPeriod === 'monthly') url += '&month=' + document.getElementById('monthly-month').value;
+        else                                  url += '&year='  + document.getElementById('yearly-year').value;
 
         setLoading(true);
-
         try {
             const res  = await fetch(url);
             const data = await res.json();
+            lastData   = data;
             reportData = data.orders || [];
             renderSummary(data);
             renderTopItems(data.topItems || []);
             renderPaymentBreakdown(data.paymentBreakdown || []);
             renderOrders(reportData);
+            renderCharts();
         } catch (e) {
             console.error('Report load error:', e);
         } finally {
             setLoading(false);
         }
+    }
+
+    // ═════════════════════════ CHARTS ═════════════════════════════
+    function setTrendMetric(metric, btn) {
+        trendMetric = metric;
+        document.querySelectorAll('#trend-metric button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderTrend();
+    }
+
+    function renderCharts() {
+        renderTrend();
+        renderTopItemsChart(lastData.topItems || []);
+        renderPaymentChart(lastData.paymentBreakdown || []);
+        renderTypeChart();
+    }
+
+    function draw(id, config) {
+        if (charts[id]) charts[id].destroy();
+        charts[id] = new Chart(document.getElementById(id), config);
+    }
+    function setEmpty(boxId, isEmpty) {
+        document.getElementById(boxId).classList.toggle('is-empty', isEmpty);
+    }
+    const hourLabel = h => (h % 12 || 12) + (h < 12 ? ' AM' : ' PM');
+
+    // Build time buckets for the selected period
+    function buildBuckets() {
+        const valid = reportData.filter(o => !CHART_EXCLUDE.includes((o.status || '').toLowerCase()));
+        let labels, keyOf, title;
+
+        if (currentPeriod === 'daily') {
+            labels = Array.from({ length: 24 }, (_, h) => hourLabel(h));
+            keyOf  = d => d.getHours();
+            title  = 'by hour';
+        } else if (currentPeriod === 'monthly') {
+            const [y, m] = document.getElementById('monthly-month').value.split('-').map(Number);
+            const days = new Date(y, m, 0).getDate();
+            labels = Array.from({ length: days }, (_, i) => String(i + 1));
+            keyOf  = d => d.getDate() - 1;
+            title  = 'by day';
+        } else {
+            labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            keyOf  = d => d.getMonth();
+            title  = 'by month';
+        }
+
+        const sales  = new Array(labels.length).fill(0);
+        const orders = new Array(labels.length).fill(0);
+        valid.forEach(o => {
+            const k = keyOf(new Date(o.createdAt));
+            if (k >= 0 && k < labels.length) { sales[k] += Number(o.totalAmount) || 0; orders[k] += 1; }
+        });
+        return { labels, sales, orders, title, count: valid.length };
+    }
+
+    function renderTrend() {
+        const b = buildBuckets();
+        const isSales = trendMetric === 'sales';
+        const series  = isSales ? b.sales : b.orders;
+
+        document.getElementById('trend-title').textContent = (isSales ? 'Sales ' : 'Orders ') + b.title;
+        setEmpty('trend-box', b.count === 0);
+
+        // Trim empty hours at both ends of a daily chart so the shape is readable
+        let from = 0, to = series.length - 1;
+        if (currentPeriod === 'daily' && b.count > 0) {
+            while (from < to && b.orders[from] === 0) from++;
+            while (to > from && b.orders[to] === 0) to--;
+            from = Math.max(0, from - 1); to = Math.min(23, to + 1);
+        }
+
+        const ctx = document.getElementById('trend-chart').getContext('2d');
+        const grad = ctx.createLinearGradient(0, 0, 0, 300);
+        grad.addColorStop(0, 'rgba(234,88,12,.28)');
+        grad.addColorStop(1, 'rgba(234,88,12,0)');
+
+        draw('trend-chart', {
+            type: 'line',
+            data: {
+                labels: b.labels.slice(from, to + 1),
+                datasets: [{
+                    data: series.slice(from, to + 1),
+                    borderColor: '#ea580c', backgroundColor: grad, fill: true,
+                    tension: .35, borderWidth: 2.5,
+                    pointRadius: 3, pointBackgroundColor: '#fff', pointBorderColor: '#ea580c', pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: c => isSales ? ' ' + fmt(c.parsed.y) : ' ' + c.parsed.y + ' orders' } }
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, grid: { color: '#f3f4f6' },
+                         ticks: { precision: 0, callback: v => isSales ? '₱' + Number(v).toLocaleString() : v } }
+                }
+            }
+        });
+
+        // Insights strip
+        const el = document.getElementById('trend-insights');
+        if (!b.count) { el.style.display = 'none'; return; }
+        el.style.display = 'flex';
+        const peak = b.sales.indexOf(Math.max(...b.sales));
+        const busy = b.orders.indexOf(Math.max(...b.orders));
+        const active = b.orders.filter(n => n > 0).length;
+        const totalSales = b.sales.reduce((a, c) => a + c, 0);
+        const unit = currentPeriod === 'daily' ? 'hour' : currentPeriod === 'monthly' ? 'day' : 'month';
+        el.innerHTML = `
+            <span><i class="fa-solid fa-trophy"></i>Best ${unit}: <strong>${b.labels[peak]}</strong> (${fmt(b.sales[peak])})</span>
+            <span><i class="fa-solid fa-fire"></i>Busiest ${unit}: <strong>${b.labels[busy]}</strong> (${b.orders[busy]} orders)</span>
+            <span><i class="fa-solid fa-scale-balanced"></i>Average per active ${unit}: <strong>${fmt(totalSales / Math.max(active, 1))}</strong></span>`;
+    }
+
+    function renderTopItemsChart(items) {
+        const top = items.slice(0, 6);
+        setEmpty('items-box', !top.length);
+        draw('items-chart', {
+            type: 'bar',
+            data: {
+                labels: top.map(i => i.name),
+                datasets: [{ data: top.map(i => i.qtySold), backgroundColor: '#ea580c', borderRadius: 6, barThickness: 18 }]
+            },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: {
+                        label: c => ' ' + c.parsed.x + ' sold',
+                        afterLabel: c => ' ' + fmt(top[c.dataIndex].revenue) + ' revenue'
+                    } }
+                },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { precision: 0 } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    function donut(id, boxId, centerId, labels, values, centerValue, centerLabel, fmtFn) {
+        const total = values.reduce((a, c) => a + c, 0);
+        setEmpty(boxId, total === 0);
+        document.getElementById(centerId).innerHTML = total ? `<b>${centerValue}</b><span>${centerLabel}</span>` : '';
+        draw(id, {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data: values, backgroundColor: PALETTE, borderWidth: 3, borderColor: '#fff' }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '68%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 14 } },
+                    tooltip: { callbacks: { label: c => ` ${c.label}: ${fmtFn(c.parsed)} (${(c.parsed / total * 100).toFixed(1)}%)` } }
+                }
+            }
+        });
+    }
+
+    function renderPaymentChart(breakdown) {
+        const total = breakdown.reduce((s, b) => s + b.amount, 0);
+        donut('pay-chart', 'pay-box', 'pay-center',
+              breakdown.map(b => b.method), breakdown.map(b => b.amount),
+              fmt(total), 'total sales', fmt);
+    }
+
+    function renderTypeChart() {
+        const valid = reportData.filter(o => !CHART_EXCLUDE.includes((o.status || '').toLowerCase()));
+        const counts = {};
+        valid.forEach(o => { const t = o.orderType || 'other'; counts[t] = (counts[t] || 0) + 1; });
+        const labels = Object.keys(counts);
+        donut('type-chart', 'type-box', 'type-center',
+              labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)), labels.map(l => counts[l]),
+              valid.length, 'orders', n => n + ' orders');
     }
 
     // ── Render summary cards ───────────────────────────────────────
@@ -244,9 +434,7 @@
                         <span class="rpt-payment-method">${b.method}</span>
                         <span class="rpt-payment-count">${b.count} orders</span>
                     </div>
-                    <div class="rpt-payment-bar-wrap">
-                        <div class="rpt-payment-bar" style="width:${pct}%"></div>
-                    </div>
+                    <div class="rpt-payment-bar-wrap"><div class="rpt-payment-bar" style="width:${pct}%"></div></div>
                     <div class="rpt-payment-right">
                         <span class="rpt-amount">${fmt(b.amount)}</span>
                         <span class="rpt-pct">${pct}%</span>
@@ -282,117 +470,89 @@
         }).join('');
     }
 
-            // ── Export CSV ─────────────────────────────────────────────────
-        function exportCSV() {
-            if (!reportData.length) {
-                alert('No data to export for this period.');
-                return;
-            }
+    // ── Export CSV ─────────────────────────────────────────────────
+    function exportCSV() {
+        if (!reportData.length) { alert('No data to export for this period.'); return; }
 
-            const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-            const rows   = [];
+        const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const rows   = [];
 
-            // ── Period label ──────────────────────────────────────────
-            const periodLabels = { daily: 'Daily', monthly: 'Monthly', yearly: 'Yearly' };
-            let periodValue = '';
-            if (currentPeriod === 'daily')   periodValue = document.getElementById('daily-date').value;
-            if (currentPeriod === 'monthly') periodValue = document.getElementById('monthly-month').value;
-            if (currentPeriod === 'yearly')  periodValue = document.getElementById('yearly-year').value;
+        const periodLabels = { daily: 'Daily', monthly: 'Monthly', yearly: 'Yearly' };
+        let periodValue = '';
+        if (currentPeriod === 'daily')   periodValue = document.getElementById('daily-date').value;
+        if (currentPeriod === 'monthly') periodValue = document.getElementById('monthly-month').value;
+        if (currentPeriod === 'yearly')  periodValue = document.getElementById('yearly-year').value;
 
-            rows.push([escape(`Sales Report — ${periodLabels[currentPeriod]}: ${periodValue}`)]);
-            rows.push([escape(`Exported: ${new Date().toLocaleString('en-PH')}`)]);
+        rows.push([escape(`Sales Report — ${periodLabels[currentPeriod]}: ${periodValue}`)]);
+        rows.push([escape(`Exported: ${new Date().toLocaleString('en-PH')}`)]);
+        rows.push(['']);
+
+        rows.push([escape('SUMMARY')]);
+        rows.push(['Total Orders', 'Total Sales', 'Avg Order Value', 'Items Sold'].map(escape).join(','));
+        rows.push([
+            document.getElementById('stat-orders').textContent,
+            document.getElementById('stat-sales').textContent,
+            document.getElementById('stat-avg').textContent,
+            document.getElementById('stat-items').textContent
+        ].map(escape).join(','));
+        rows.push(['']);
+
+        const topRows = [...document.querySelectorAll('#top-items-body tr')].filter(r => !r.querySelector('.rpt-empty'));
+        if (topRows.length) {
+            rows.push([escape('TOP SELLING ITEMS')]);
+            rows.push(['#', 'Item', 'Qty Sold', 'Revenue'].map(escape).join(','));
+            topRows.forEach(r => {
+                const cells = r.querySelectorAll('td');
+                rows.push([0,1,2,3].map(i => cells[i]?.textContent.trim()).map(escape).join(','));
+            });
             rows.push(['']);
+        }
 
-            // ── Summary ───────────────────────────────────────────────
-            rows.push([escape('SUMMARY')]);
-            rows.push(['Total Orders', 'Total Sales', 'Avg Order Value', 'Items Sold'].map(escape).join(','));
-            rows.push([
-                document.getElementById('stat-orders').textContent,
-                document.getElementById('stat-sales').textContent,
-                document.getElementById('stat-avg').textContent,
-                document.getElementById('stat-items').textContent
-            ].map(escape).join(','));
-            rows.push(['']);
-
-            // ── Top Items ─────────────────────────────────────────────
-            const topRows = [...document.querySelectorAll('#top-items-body tr')]
-                .filter(r => !r.querySelector('.rpt-empty'));
-
-            if (topRows.length) {
-                rows.push([escape('TOP SELLING ITEMS')]);
-                rows.push(['#', 'Item', 'Qty Sold', 'Revenue'].map(escape).join(','));
-                topRows.forEach(r => {
-                    const cells = r.querySelectorAll('td');
-                    rows.push([
-                        cells[0]?.textContent.trim(),
-                        cells[1]?.textContent.trim(),
-                        cells[2]?.textContent.trim(),
-                        cells[3]?.textContent.trim()
-                    ].map(escape).join(','));
-                });
-                rows.push(['']);
-            }
-
-            // ── Payment Breakdown ─────────────────────────────────────
-            const payRows = [...document.querySelectorAll('#payment-breakdown .rpt-payment-row')];
-
-            if (payRows.length) {
-                rows.push([escape('SALES BY PAYMENT METHOD')]);
-                rows.push(['Method', 'Orders', 'Amount', 'Share %'].map(escape).join(','));
-                payRows.forEach(r => {
-                    rows.push([
-                        r.querySelector('.rpt-payment-method')?.textContent.trim(),
-                        r.querySelector('.rpt-payment-count')?.textContent.replace(' orders','').trim(),
-                        r.querySelector('.rpt-amount')?.textContent.trim(),
-                        r.querySelector('.rpt-pct')?.textContent.trim()
-                    ].map(escape).join(','));
-                });
-                rows.push(['']);
-            }
-
-            // ── Orders Detail ─────────────────────────────────────────
-            rows.push([escape('ORDER DETAILS')]);
-            rows.push(['Order#','Customer','Type','Table','Payment','Items','Total','Status','Date & Time'].map(escape).join(','));
-            reportData.forEach(o => {
-                const dt = new Date(o.createdAt);
+        const payRows = [...document.querySelectorAll('#payment-breakdown .rpt-payment-row')];
+        if (payRows.length) {
+            rows.push([escape('SALES BY PAYMENT METHOD')]);
+            rows.push(['Method', 'Orders', 'Amount', 'Share %'].map(escape).join(','));
+            payRows.forEach(r => {
                 rows.push([
-                    o.orderNumber,
-                    o.customerName || '',
-                    o.orderType,
-                    o.tableNumber  || '',
-                    o.paymentMethod,
-                    o.itemCount,
-                    o.totalAmount,
-                    o.status,
-                    dt.toLocaleString('en-PH')
+                    r.querySelector('.rpt-payment-method')?.textContent.trim(),
+                    r.querySelector('.rpt-payment-count')?.textContent.replace(' orders','').trim(),
+                    r.querySelector('.rpt-amount')?.textContent.trim(),
+                    r.querySelector('.rpt-pct')?.textContent.trim()
                 ].map(escape).join(','));
             });
-
-            // ── Download ──────────────────────────────────────────────
-            const csv  = rows.map(r => Array.isArray(r) ? r.join(',') : r).join('\r\n');
-            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
-            const a    = Object.assign(document.createElement('a'), {
-                href:     URL.createObjectURL(blob),
-                download: `sales-report-${currentPeriod}-${periodValue}.csv`
-            });
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(a.href);
+            rows.push(['']);
         }
+
+        rows.push([escape('ORDER DETAILS')]);
+        rows.push(['Order#','Customer','Type','Table','Payment','Items','Total','Status','Date & Time'].map(escape).join(','));
+        reportData.forEach(o => {
+            rows.push([
+                o.orderNumber, o.customerName || '', o.orderType, o.tableNumber || '',
+                o.paymentMethod, o.itemCount, o.totalAmount, o.status,
+                new Date(o.createdAt).toLocaleString('en-PH')
+            ].map(escape).join(','));
+        });
+
+        const csv  = rows.map(r => Array.isArray(r) ? r.join(',') : r).join('\r\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const a    = Object.assign(document.createElement('a'), {
+            href: URL.createObjectURL(blob),
+            download: `sales-report-${currentPeriod}-${periodValue}.csv`
+        });
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+    }
 
     // ── Helpers ────────────────────────────────────────────────────
     function fmt(n) { return '₱' + parseFloat(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
     function setLoading(on) {
-        const empty = '<tr><td colspan="9" class="rpt-empty">Loading…</td></tr>';
-        if (on) {
-            document.getElementById('orders-body').innerHTML    = empty;
-            document.getElementById('top-items-body').innerHTML = '<tr><td colspan="4" class="rpt-empty">Loading…</td></tr>';
-            ['stat-orders','stat-sales','stat-avg','stat-items'].forEach(id => {
-                document.getElementById(id).textContent = '—';
-            });
-        }
+        if (!on) return;
+        document.getElementById('orders-body').innerHTML    = '<tr><td colspan="9" class="rpt-empty">Loading…</td></tr>';
+        document.getElementById('top-items-body').innerHTML = '<tr><td colspan="4" class="rpt-empty">Loading…</td></tr>';
+        ['stat-orders','stat-sales','stat-avg','stat-items'].forEach(id => document.getElementById(id).textContent = '—');
     }
 
     // ── Init ───────────────────────────────────────────────────────

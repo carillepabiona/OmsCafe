@@ -23,7 +23,7 @@ public class DashboardController : ControllerBase
         // lowercase to match DB values
         var cancelledStatuses = new[] { "cancelled" };
         var completedStatuses = new[] { "paid", "served", "completed" };
-        var pendingStatuses = new[] { "pending", "awaiting_payment" };
+        var pendingStatuses = new[] { "pending", "Waiting Payment" };
 
         var validOrders = todayOrders.Where(o => !cancelledStatuses.Contains(o.Status)).ToList();
         var totalSales = validOrders.Sum(o => o.Total);

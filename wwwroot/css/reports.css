@@ -424,3 +424,162 @@
     font-size: 11px;
     color: #9ca3af;
 }
+
+/* ── ADD THIS TO THE BOTTOM OF reports.css ─────────────────────── */
+
+/* Trend chart (full width) */
+.rpt-chart-head-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rpt-seg {
+    display: flex;
+    gap: 2px;
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 3px;
+}
+
+    .rpt-seg button {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border: none;
+        background: transparent;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all .15s;
+    }
+
+        .rpt-seg button.active {
+            background: #fff;
+            color: #ea580c;
+            box-shadow: 0 1px 2px rgba(0,0,0,.08);
+        }
+
+        .rpt-seg button:hover:not(.active) {
+            color: #374151;
+        }
+
+.rpt-chart-insights {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    padding: 12px 20px;
+    border-top: 0.5px solid #e5e7eb;
+    background: #f9fafb;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+    .rpt-chart-insights i {
+        color: #ea580c;
+        margin-right: 6px;
+    }
+
+    .rpt-chart-insights strong {
+        color: #111827;
+        font-weight: 600;
+    }
+
+.rpt-chart-box {
+    position: relative;
+    height: 300px;
+}
+
+    .rpt-chart-box.sm {
+        height: 240px;
+    }
+
+    .rpt-chart-box canvas {
+        max-width: 100%;
+    }
+
+/* Three-up chart row */
+.rpt-chart-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 1100px) {
+    .rpt-chart-row {
+        grid-template-columns: 1fr 1fr;
+    }
+
+        .rpt-chart-row > :first-child {
+            grid-column: 1 / -1;
+        }
+}
+
+@media (max-width: 640px) {
+    .rpt-chart-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.rpt-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+    .rpt-panel-title i {
+        color: #ea580c;
+        font-size: 14px;
+    }
+
+/* Centre figure inside doughnuts */
+.rpt-donut-wrap {
+    position: relative;
+}
+
+.rpt-donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+    .rpt-donut-center b {
+        font-size: 20px;
+        color: #111827;
+    }
+
+    .rpt-donut-center span {
+        font-size: 11px;
+        color: #9ca3af;
+    }
+
+.rpt-chart-empty {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #9ca3af;
+    font-size: 13px;
+    background: #fff;
+}
+
+    .rpt-chart-empty i {
+        font-size: 28px;
+        color: #d1d5db;
+    }
+
+.rpt-chart-box.is-empty .rpt-chart-empty {
+    display: flex;
+}
+

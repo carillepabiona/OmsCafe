@@ -11,6 +11,9 @@
         public decimal Amount { get; set; }
         public DateTime PaidAt { get; set; }
 
+        public decimal? CashReceived { get; set; }
+        public decimal? ChangeGiven { get; set; }
+
         public Order Order { get; set; } = null!;
     }
 }
