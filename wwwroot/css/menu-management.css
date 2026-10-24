@@ -2252,3 +2252,8 @@ body.modal-open {
             flex: 1 1 calc(50% - 8px);
         }
 }
+
+.mm-page .btn-ghost-cafe .btn-spinner {
+    border-color: rgba(0, 0, 0, .2);
+    border-top-color: #555;
+}

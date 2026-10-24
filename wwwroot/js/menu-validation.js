@@ -216,20 +216,23 @@
         setTimeout(() => box.classList.remove('is-shaking'), 400);
     }
 
-    function lock(form) {
-        const btn = form.querySelector('button[type="submit"]');
-        if (!btn) return;
+    function lock(form, submitter) {
+        const btns = Array.from(form.querySelectorAll('button[type="submit"]'));
+        const main = submitter || btns[0];
         setTimeout(() => {
-            btn.dataset.orig = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="btn-spinner"></span> Saving…';
+            btns.forEach(b => { b.disabled = true; });
+            if (main) {
+                main.dataset.orig = main.innerHTML;
+                main.innerHTML = '<span class="btn-spinner"></span> Saving…';
+            }
         }, 0);
     }
 
     function unlock(form) {
-        const btn = form.querySelector('button[type="submit"]');
-        if (btn && btn.dataset.orig) { btn.innerHTML = btn.dataset.orig; delete btn.dataset.orig; }
-        if (btn) btn.disabled = false;
+        form.querySelectorAll('button[type="submit"]').forEach(b => {
+            if (b.dataset.orig) { b.innerHTML = b.dataset.orig; delete b.dataset.orig; }
+            b.disabled = false;
+        });
     }
 
     /* ── character counters ──────────────────────────────── */
@@ -253,13 +256,17 @@
     document.addEventListener('submit', function (e) {
         const form = e.target;
         if (!form.matches || !form.matches('form[data-validate]')) return;
-        if (!validateForm(form)) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            shake(form);
-            return;
+        const sub = e.submitter;
+        // buttons marked formnovalidate (e.g. "Mark available") skip field validation
+        if (!(sub && sub.hasAttribute('formnovalidate'))) {
+            if (!validateForm(form)) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                shake(form);
+                return;
+            }
         }
-        lock(form);
+        lock(form, sub);
     }, true);
 
     document.addEventListener('focusout', function (e) {

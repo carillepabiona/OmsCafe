@@ -2,80 +2,889 @@
 @model OmsCafe.Pages.Admin.SettingsModel
 @{
     ViewData["Title"] = "Settings";
-    ViewData["Subtitle"] = "Manage your workspace preferences and configuration.";
-    var loggedInUser = "admin"; // Replace with session/auth value e.g. HttpContext.Session.GetString("Username")
-    var loggedInRole = "Administrator"; // Replace with session/auth value
+    ViewData["Subtitle"] = "Manage your profile and keep your account secure.";
+    var initial = string.IsNullOrWhiteSpace(Model.DisplayName) ? "?" : Model.DisplayName.Trim().Substring(0, 1).ToUpper();
 }
 
 @section TopbarActions {
-    <!-- Page Header -->
-    <div class="settings-page-header">
-        <div class="settings-user-badge">
-            <div class="settings-user-badge-avatar">@loggedInUser.Substring(0, 1).ToUpper()</div>
-            <div>
-                <p class="settings-user-badge-name">@loggedInUser</p>
-                <p class="settings-user-badge-role">@loggedInRole</p>
-            </div>
+    <div class="settings-user-badge">
+        <div class="settings-user-badge-avatar">@initial</div>
+        <div>
+            <p class="settings-user-badge-name">@Model.DisplayName</p>
+            <p class="settings-user-badge-role">@Model.RoleName</p>
         </div>
     </div>
-
 }
 
-<link rel="stylesheet" href="~/css/settings.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
 
-<div class="settings-layout">
+<style>
+    /* ─────────────────────────────────────────
+       Settings page — Verso Cafe & Co.
+       White & orange, warm cream fields
+       (variables are prefixed --st- so they never clash with your layout)
+       ───────────────────────────────────────── */
 
-    <!-- Main Content -->
-    <main class="settings-main">
+    :root {
+        --st-orange: #FF8C00;
+        --st-orange-strong: #C25E00;
+        --st-orange-dark: #A84F00;
+        --st-peach: #fde8d4;
+        --st-ink: #1f1a14;
+        --st-text: #333333;
+        --st-sub: #6b6560;
+        --st-mute: #8f8a84;
+        --st-card: #ffffff;
+        --st-card-border: #eee4d8;
+        --st-field: #faf6f0;
+        --st-field-border: #e8dfd2;
+        --st-field-border-hover: #d8ccba;
+        --st-divider: #efe7dc;
+        --st-meter-off: #ebe4da;
+        --st-rule-ring: #cfc6ba;
+        --st-success: #15803d;
+        --st-success-soft: #dcfce7;
+        --st-success-bg: #f0fdf4;
+        --st-success-line: #bbf7d0;
+        --st-danger: #b91c1c;
+        --st-danger-bg: #fef2f2;
+        --st-danger-line: #fecaca;
+        --st-shadow: 0 1px 2px rgba(31,26,20,.04), 0 8px 28px rgba(31,26,20,.04);
+        --st-font: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
 
-        <div class="settings-grid">
+    /* Dark mode: adjust these selectors to whatever your layout's moon toggle sets */
+    html[data-theme="dark"],
+    html[data-bs-theme="dark"],
+    html.dark,
+    body.dark,
+    body.dark-mode,
+    body[data-theme="dark"] {
+        --st-peach: #3a2a1a;
+        --st-ink: #f5eee5;
+        --st-text: #e6ddd1;
+        --st-sub: #b8afa3;
+        --st-mute: #918a7f;
+        --st-card: #1f1b17;
+        --st-card-border: #342d26;
+        --st-field: #2a251f;
+        --st-field-border: #3d352c;
+        --st-field-border-hover: #54493c;
+        --st-divider: #342d26;
+        --st-meter-off: #3b352d;
+        --st-rule-ring: #5a5044;
+        --st-orange-strong: #ffa94d;
+        --st-success: #4ade80;
+        --st-success-soft: rgba(34,197,94,.18);
+        --st-success-bg: rgba(34,197,94,.12);
+        --st-success-line: rgba(34,197,94,.3);
+        --st-danger: #f87171;
+        --st-danger-bg: rgba(239,68,68,.12);
+        --st-danger-line: rgba(239,68,68,.3);
+    }
 
-            <!-- Profile Card -->
-            <section class="settings-card settings-card--profile">
-                <div class="settings-card-header">
-                    <h2>Profile</h2>
-                    <span class="settings-badge settings-badge--active">Active</span>
+    /* ═════════ Topbar user badge ═════════ */
+    .settings-user-badge {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--st-card);
+        border: 1px solid var(--st-card-border);
+        border-radius: 14px;
+        padding: 6px 14px 6px 6px;
+        font-family: var(--st-font);
+    }
+
+    .settings-user-badge-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: var(--st-peach);
+        color: var(--st-orange-strong);
+        font-size: 17px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .settings-user-badge-name {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.2;
+        color: var(--st-ink);
+    }
+
+    .settings-user-badge-role {
+        margin: 0;
+        font-size: 12px;
+        color: var(--st-sub);
+    }
+
+    /* ═════════ Layout ═════════ */
+    .settings-main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 1.75rem 0 3rem;
+        font-family: var(--st-font);
+        color: var(--st-text);
+    }
+
+    .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 28px;
+        align-items: start;
+    }
+
+    /* ═════════ Alerts ═════════ */
+    .settings-alert {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        border-radius: 12px;
+        margin-bottom: 1.25rem;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .settings-alert.ok {
+        background: var(--st-success-bg);
+        color: var(--st-success);
+        border: 1px solid var(--st-success-line);
+    }
+
+    .settings-alert.err {
+        background: var(--st-danger-bg);
+        color: var(--st-danger);
+        border: 1px solid var(--st-danger-line);
+    }
+
+    /* ═════════ Cards ═════════ */
+    .settings-card {
+        background: var(--st-card);
+        border: 1px solid var(--st-card-border);
+        border-radius: 24px;
+        box-shadow: var(--st-shadow);
+        padding: 32px;
+    }
+
+    .settings-divider {
+        height: 1px;
+        background: var(--st-divider);
+        margin: 24px 0;
+    }
+
+    /* Profile header row */
+    .settings-profile-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .settings-avatar-lg {
+        flex: none;
+        width: 68px;
+        height: 68px;
+        border-radius: 18px;
+        background: var(--st-peach);
+        color: var(--st-orange-strong);
+        font-size: 28px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .settings-profile-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .settings-profile-info p {
+        margin: 0;
+    }
+
+    .settings-profile-name {
+        font-size: 20px;
+        font-weight: 800;
+        line-height: 1.25;
+        color: var(--st-ink);
+        word-break: break-word;
+    }
+
+    .settings-profile-meta {
+        margin-top: 3px !important;
+        font-size: 14px;
+        color: var(--st-sub);
+    }
+
+    .settings-badge {
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 6px 14px;
+        border-radius: 999px;
+    }
+
+    .settings-badge--active {
+        background: var(--st-success-soft);
+        color: var(--st-success);
+    }
+
+    .settings-badge--active::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    /* Section headings inside cards */
+    .settings-section-title {
+        margin: 0 0 4px;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: -.01em;
+        color: var(--st-ink);
+    }
+
+    .settings-section-note {
+        margin: 0 0 22px;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--st-sub);
+    }
+
+    /* Security header */
+    .settings-card-head {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .settings-card-icon {
+        flex: none;
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: var(--st-peach);
+        color: var(--st-orange-strong);
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .settings-card-head h2 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 800;
+        color: var(--st-ink);
+        line-height: 1.25;
+    }
+
+    .settings-card-head p {
+        margin: 2px 0 0;
+        font-size: 14px;
+        color: var(--st-sub);
+        line-height: 1.4;
+    }
+
+    /* ═════════ Forms ═════════ */
+    .settings-form {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .form-group-settings {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .settings-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--st-ink);
+    }
+
+    .input-icon,
+    .pw-field {
+        position: relative;
+    }
+
+    .input-icon-left {
+        position: absolute;
+        left: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--st-mute);
+        font-size: 15px;
+        pointer-events: none;
+        transition: color .15s;
+    }
+
+    .input-icon--top .input-icon-left {
+        top: 17px;
+        transform: none;
+    }
+
+    .input-icon:focus-within .input-icon-left,
+    .pw-field:focus-within .input-icon-left {
+        color: var(--st-orange-strong);
+    }
+
+    .settings-input {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 13px 14px 13px 46px;
+        font-size: 16px; /* prevents iOS zoom on focus */
+        font-family: inherit;
+        color: var(--st-ink);
+        background: var(--st-field);
+        border: 1px solid var(--st-field-border);
+        border-radius: 12px;
+        outline: none;
+        transition: border-color .15s, box-shadow .15s, background .15s;
+        resize: vertical;
+    }
+
+    textarea.settings-input {
+        line-height: 1.5;
+        min-height: 92px;
+    }
+
+    .settings-input::placeholder {
+        color: #a8a29a;
+    }
+
+    .settings-input:hover {
+        border-color: var(--st-field-border-hover);
+    }
+
+    .settings-input:focus {
+        background: var(--st-card);
+        border-color: var(--st-orange);
+        box-shadow: 0 0 0 3px rgba(255,140,0,.2);
+    }
+
+    .settings-input.input-validation-error {
+        border-color: #ef4444;
+    }
+
+    .settings-input.input-validation-error:focus {
+        box-shadow: 0 0 0 3px rgba(239,68,68,.15);
+    }
+
+    .field-hint {
+        font-size: 12.5px;
+        color: var(--st-mute);
+    }
+
+    .field-error {
+        display: block;
+        font-size: 12.5px;
+        font-weight: 500;
+        color: var(--st-danger);
+    }
+
+    .field-error:empty {
+        display: none;
+    }
+
+    .field-error::before {
+        content: "\f06a";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        margin-right: 6px;
+        font-size: 11px;
+    }
+
+    .field-error:empty::before {
+        content: none;
+    }
+
+    /* Password eye */
+    .pw-field .settings-input {
+        padding-right: 52px;
+    }
+
+    .pw-eye {
+        position: absolute;
+        top: 50%;
+        right: 8px;
+        transform: translateY(-50%);
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: transparent;
+        color: var(--st-mute);
+        font-size: 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: color .15s, background .15s;
+    }
+
+    .pw-eye:hover {
+        color: var(--st-orange-strong);
+        background: rgba(255,140,0,.1);
+    }
+
+    /* ═════════ Strength meter ═════════ */
+    .pw-meter {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-top: 4px;
+    }
+
+    .pw-meter-bars {
+        display: flex;
+        gap: 8px;
+        flex: 1;
+    }
+
+    .pw-meter-bars span {
+        flex: 1;
+        height: 5px;
+        border-radius: 3px;
+        background: var(--st-meter-off);
+        transition: background .2s;
+    }
+
+    .pw-meter-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--st-sub);
+        white-space: nowrap;
+        text-align: right;
+    }
+
+    .pw-meter.lvl-1 .pw-meter-bars span.on { background: #ef4444; }
+    .pw-meter.lvl-1 .pw-meter-label { color: #dc2626; }
+    .pw-meter.lvl-2 .pw-meter-bars span.on { background: #f59e0b; }
+    .pw-meter.lvl-2 .pw-meter-label { color: #d97706; }
+    .pw-meter.lvl-3 .pw-meter-bars span.on { background: #84cc16; }
+    .pw-meter.lvl-3 .pw-meter-label { color: #65a30d; }
+    .pw-meter.lvl-4 .pw-meter-bars span.on { background: #16a34a; }
+    .pw-meter.lvl-4 .pw-meter-label { color: #16a34a; }
+
+    /* ═════════ Rules panel ═════════ */
+    .pw-rules-box {
+        margin-top: 12px;
+        padding: 18px 20px 20px;
+        background: var(--st-field);
+        border-radius: 16px;
+    }
+
+    .pw-rules-title {
+        margin: 0 0 14px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--st-ink);
+    }
+
+    .pw-rules {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 16px;
+    }
+
+    .pw-rules li {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-size: 13.5px;
+        line-height: 1.35;
+        color: var(--st-sub);
+        transition: color .15s;
+    }
+
+    /* Empty ring by default, green check once the rule is met */
+    .rule-icon {
+        flex: none;
+        width: 18px;
+        height: 18px;
+        margin-top: 0;
+        border-radius: 50%;
+        border: 1.5px solid var(--st-rule-ring);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        color: #fff;
+        transition: background .2s, border-color .2s;
+    }
+
+    .rule-icon i {
+        opacity: 0;
+        transition: opacity .15s;
+    }
+
+    .pw-rules li.ok {
+        color: var(--st-ink);
+    }
+
+    .pw-rules li.ok .rule-icon {
+        background: #16a34a;
+        border-color: #16a34a;
+    }
+
+    .pw-rules li.ok .rule-icon i {
+        opacity: 1;
+    }
+
+    /* ═════════ Buttons ═════════ */
+    .settings-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        align-self: flex-end;
+        padding: 13px 26px;
+        font-size: 15px;
+        font-weight: 700;
+        font-family: inherit;
+        border-radius: 12px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: background .15s, border-color .15s, opacity .15s, transform .1s;
+    }
+
+    .settings-btn:active:not(:disabled) {
+        transform: scale(.98);
+    }
+
+    .settings-btn:disabled {
+        opacity: .5;
+        cursor: not-allowed;
+    }
+
+    .settings-btn--primary {
+        background: #C05A0A;
+        border-color: #C05A0A;
+        color: #fff;
+    }
+
+    .settings-btn--primary:hover:not(:disabled) {
+        background: var(--st-orange-dark);
+        border-color: var(--st-orange-dark);
+    }
+
+    .settings-btn:focus-visible,
+    .pw-eye:focus-visible {
+        outline: 2px solid var(--st-orange);
+        outline-offset: 2px;
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .settings-input,
+        .settings-btn,
+        .pw-eye,
+        .rule-icon,
+        .rule-icon i,
+        .input-icon-left,
+        .pw-meter-bars span,
+        .pw-rules li {
+            transition: none;
+        }
+    }
+
+    /* ═════════ Responsive ═════════ */
+    @@media (max-width: 960px) {
+        .settings-main {
+            padding: 1.25rem 0 2rem;
+        }
+
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 600px) {
+        .settings-card {
+            padding: 22px 18px 24px;
+            border-radius: 20px;
+        }
+
+        .settings-profile-row {
+            flex-wrap: wrap;
+        }
+
+        .settings-badge {
+            margin-left: 84px;
+        }
+
+        .pw-rules {
+            grid-template-columns: 1fr;
+        }
+
+        .settings-btn {
+            width: 100%;
+            align-self: stretch;
+        }
+    }
+</style>
+
+<div class="settings-main">
+
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="settings-alert ok" role="status"><i class="fa-solid fa-circle-check"></i> @Model.Message</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.Error))
+    {
+        <div class="settings-alert err" role="alert"><i class="fa-solid fa-circle-exclamation"></i> @Model.Error</div>
+    }
+
+    <div class="settings-grid">
+
+        <!-- ───────────── Profile ───────────── -->
+        <section class="settings-card" aria-label="Profile">
+            <div class="settings-profile-row">
+                <div class="settings-avatar-lg" aria-hidden="true">@initial</div>
+                <div class="settings-profile-info">
+                    <p class="settings-profile-name">@Model.DisplayName</p>
+                    <p class="settings-profile-meta">@Model.RoleName &middot; @Model.MemberSince</p>
                 </div>
-                <div class="settings-profile-row">
-                    <div class="settings-avatar-lg">@loggedInUser.Substring(0, 1).ToUpper()</div>
-                    <div class="settings-profile-info">
-                        <p class="settings-profile-name">@loggedInUser</p>
-                        <p class="settings-profile-role">@loggedInRole</p>
-                        <p class="settings-profile-since">Member since January 2024</p>
+                <span class="settings-badge settings-badge--active">Active</span>
+            </div>
+
+            <div class="settings-divider"></div>
+
+            <h2 class="settings-section-title">Personal information</h2>
+            <p class="settings-section-note">This is how you appear across the system.</p>
+
+            <form method="post" asp-page-handler="Profile" novalidate id="profile-form" class="settings-form">
+                <div class="form-group-settings">
+                    <label class="settings-label" for="p-name">Full name</label>
+                    <div class="input-icon">
+                        <i class="fa-regular fa-user input-icon-left"></i>
+                        <input asp-for="Profile.FullName" id="p-name" class="settings-input" maxlength="100" autocomplete="name" />
+                    </div>
+                    <span asp-validation-for="Profile.FullName" class="field-error"></span>
+                </div>
+
+                <div class="form-group-settings">
+                    <label class="settings-label" for="p-contact">Contact number</label>
+                    <div class="input-icon">
+                        <i class="fa-solid fa-phone input-icon-left"></i>
+                        <input asp-for="Profile.ContactNumber" id="p-contact" class="settings-input"
+                               inputmode="numeric" maxlength="11" placeholder="09123456789" autocomplete="tel" />
+                    </div>
+                    <span class="field-hint">11 digits, numbers only.</span>
+                    <span asp-validation-for="Profile.ContactNumber" class="field-error"></span>
+                </div>
+
+                <div class="form-group-settings">
+                    <label class="settings-label" for="p-address">Address</label>
+                    <div class="input-icon input-icon--top">
+                        <i class="fa-solid fa-location-dot input-icon-left"></i>
+                        <textarea asp-for="Profile.Address" id="p-address" class="settings-input" rows="3" maxlength="250"
+                                  placeholder="Street, barangay, city" autocomplete="street-address"></textarea>
+                    </div>
+                    <span asp-validation-for="Profile.Address" class="field-error"></span>
+                </div>
+
+                <button type="submit" class="settings-btn settings-btn--primary">Save changes</button>
+            </form>
+        </section>
+
+        <!-- ───────────── Security ───────────── -->
+        <section class="settings-card" aria-label="Security">
+            <div class="settings-card-head">
+                <div class="settings-card-icon" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></div>
+                <div>
+                    <h2>Security</h2>
+                    <p>Use a strong password you don't use anywhere else.</p>
+                </div>
+            </div>
+
+            <div class="settings-divider"></div>
+
+            <form method="post" asp-page-handler="Password" novalidate id="pw-form" class="settings-form" autocomplete="off">
+
+                <div class="form-group-settings">
+                    <label class="settings-label" for="pw-current">Current password</label>
+                    <div class="pw-field">
+                        <i class="fa-solid fa-lock input-icon-left"></i>
+                        <input asp-for="Password.CurrentPassword" id="pw-current" type="password" class="settings-input"
+                               placeholder="Enter current password" autocomplete="current-password" />
+                        <button type="button" class="pw-eye" data-target="pw-current" aria-label="Show password"><i class="fa-regular fa-eye"></i></button>
+                    </div>
+                    <span asp-validation-for="Password.CurrentPassword" class="field-error"></span>
+                </div>
+
+                <div class="form-group-settings">
+                    <label class="settings-label" for="pw-new">New password</label>
+                    <div class="pw-field">
+                        <i class="fa-solid fa-lock input-icon-left"></i>
+                        <input asp-for="Password.NewPassword" id="pw-new" type="password" class="settings-input" maxlength="64"
+                               placeholder="Create a password" autocomplete="new-password" />
+                        <button type="button" class="pw-eye" data-target="pw-new" aria-label="Show password"><i class="fa-regular fa-eye"></i></button>
+                    </div>
+                    <span asp-validation-for="Password.NewPassword" class="field-error"></span>
+
+                    <!-- Strength meter -->
+                    <div class="pw-meter" id="pw-meter" aria-hidden="true">
+                        <div class="pw-meter-bars"><span></span><span></span><span></span><span></span></div>
+                        <span class="pw-meter-label" id="pw-meter-label">Enter a password</span>
+                    </div>
+
+                    <!-- Rules panel -->
+                    <div class="pw-rules-box" role="group" aria-labelledby="pw-rules-title">
+                        <p class="pw-rules-title" id="pw-rules-title">Password must have</p>
+                        <ul class="pw-rules" id="pw-rules" aria-live="polite">
+                            <li data-rule="len"><span class="rule-icon"><i class="fa-solid fa-check"></i></span><span>At least 8 characters</span></li>
+                            <li data-rule="upper"><span class="rule-icon"><i class="fa-solid fa-check"></i></span><span>An uppercase letter (A-Z)</span></li>
+                            <li data-rule="lower"><span class="rule-icon"><i class="fa-solid fa-check"></i></span><span>A lowercase letter (a-z)</span></li>
+                            <li data-rule="num"><span class="rule-icon"><i class="fa-solid fa-check"></i></span><span>A number (0-9)</span></li>
+                            <li data-rule="special"><span class="rule-icon"><i class="fa-solid fa-check"></i></span><span>A special character (! @@ # $ %)</span></li>
+                        </ul>
                     </div>
                 </div>
-                <div class="settings-divider"></div>
-                <div class="form-group-settings">
-                    <label class="settings-label">Display Name</label>
-                    <input type="text" class="settings-input" value="@loggedInUser" />
-                </div>
-                <div class="form-group-settings">
-                    <label class="settings-label">Email Address</label>
-                    <input type="email" class="settings-input" placeholder="admin@versocafe.com" />
-                </div>
-                <button class="settings-btn settings-btn--primary">Save Changes</button>
-            </section>
 
-            <!-- Security Card -->
-            <section class="settings-card">
-                <div class="settings-card-header">
-                    <h2>Security</h2>
-                </div>
                 <div class="form-group-settings">
-                    <label class="settings-label">Current Password</label>
-                    <input type="password" class="settings-input" placeholder="••••••••" />
+                    <label class="settings-label" for="pw-confirm">Confirm new password</label>
+                    <div class="pw-field">
+                        <i class="fa-solid fa-lock input-icon-left"></i>
+                        <input asp-for="Password.ConfirmPassword" id="pw-confirm" type="password" class="settings-input" maxlength="64"
+                               placeholder="Re-enter new password" autocomplete="new-password" />
+                        <button type="button" class="pw-eye" data-target="pw-confirm" aria-label="Show password"><i class="fa-regular fa-eye"></i></button>
+                    </div>
+                    <span class="field-error" id="confirm-msg" aria-live="polite"></span>
+                    <span asp-validation-for="Password.ConfirmPassword" class="field-error"></span>
                 </div>
-                <div class="form-group-settings">
-                    <label class="settings-label">New Password</label>
-                    <input type="password" class="settings-input" placeholder="••••••••" />
-                </div>
-                <div class="form-group-settings">
-                    <label class="settings-label">Confirm Password</label>
-                    <input type="password" class="settings-input" placeholder="••••••••" />
-                </div>
-                <button class="settings-btn settings-btn--outline">Update Password</button>
-            </section>
 
-        </div>
-    </main>
+                <button type="submit" class="settings-btn settings-btn--primary" id="pw-submit" disabled>Update password</button>
+            </form>
+        </section>
+
+    </div>
 </div>
+
+@section Scripts {
+<script>
+    (function () {
+        const $ = id => document.getElementById(id);
+
+        /* ---------- Show / hide password ---------- */
+        document.querySelectorAll('.pw-eye').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const input = $(btn.dataset.target);
+                const show = input.type === 'password';
+                input.type = show ? 'text' : 'password';
+                btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+                btn.innerHTML = show ? '<i class="fa-regular fa-eye-slash"></i>' : '<i class="fa-regular fa-eye"></i>';
+            });
+        });
+
+        /* ---------- Contact number: digits only ---------- */
+        const contact = $('p-contact');
+        contact.addEventListener('input', () => {
+            contact.value = contact.value.replace(/[^0-9]/g, '').slice(0, 11);
+        });
+
+        /* ---------- Password rules (mirror PasswordPolicy.cs) ---------- */
+        const rules = {
+            len:     p => p.length >= 8 && p.length <= 64,
+            upper:   p => /[A-Z]/.test(p),
+            lower:   p => /[a-z]/.test(p),
+            num:     p => /[0-9]/.test(p),
+            special: p => /[^A-Za-z0-9\s]/.test(p)
+        };
+
+        const cur = $('pw-current'), nw = $('pw-new'), cf = $('pw-confirm'), submit = $('pw-submit');
+        const bars  = [...document.querySelectorAll('#pw-meter .pw-meter-bars span')];
+        const label = $('pw-meter-label'), meter = $('pw-meter');
+
+        const levels = [
+            { t: 'Too weak', c: 'lvl-1', bars: 1 },
+            { t: 'Weak',     c: 'lvl-1', bars: 1 },
+            { t: 'Fair',     c: 'lvl-2', bars: 2 },
+            { t: 'Good',     c: 'lvl-3', bars: 3 },
+            { t: 'Strong',   c: 'lvl-4', bars: 4 }
+        ];
+
+        function evaluate() {
+            const p = nw.value;
+            let passed = 0;
+
+            for (const [key, test] of Object.entries(rules)) {
+                const ok = test(p);
+                document.querySelector('#pw-rules [data-rule="' + key + '"]').classList.toggle('ok', ok);
+                if (ok) passed++;
+            }
+
+            // Strength meter
+            meter.className = 'pw-meter';
+            bars.forEach(b => b.classList.remove('on'));
+
+            if (!p) {
+                label.textContent = 'Enter a password';
+            } else {
+                let idx;
+                if (passed === 5) idx = p.length >= 12 ? 4 : 3;
+                else if (passed === 4) idx = 2;
+                else if (passed >= 2) idx = 1;
+                else idx = 0;
+
+                const info = levels[idx];
+                label.textContent = info.t;
+                meter.classList.add(info.c);
+                bars.forEach((b, i) => b.classList.toggle('on', i < info.bars));
+            }
+
+            // Confirm match
+            const msg = $('confirm-msg');
+            if (cf.value && cf.value !== p) {
+                msg.textContent = 'Passwords do not match.';
+                cf.classList.add('input-validation-error');
+            } else {
+                msg.textContent = '';
+                cf.classList.remove('input-validation-error');
+            }
+
+            submit.disabled = !(passed === 5 && cf.value === p && cf.value.length > 0 && cur.value.length > 0);
+        }
+
+        [cur, nw, cf].forEach(el => el.addEventListener('input', evaluate));
+        evaluate();
+
+        /* ---------- Profile: quick client checks ---------- */
+        $('profile-form').addEventListener('submit', e => {
+            const name = $('p-name').value.trim();
+            const num  = contact.value;
+            const addr = $('p-address').value.trim();
+            let bad = false;
+
+            const set = (input, text) => {
+                const span = input.closest('.form-group-settings').querySelector('.field-error');
+                span.textContent = text;
+                input.classList.toggle('input-validation-error', !!text);
+                if (text) bad = true;
+            };
+
+            set($('p-name'), name ? '' : 'Enter your full name.');
+            set(contact, /^[0-9]{11}$/.test(num) ? '' : 'Contact number must be exactly 11 digits (numbers only).');
+            set($('p-address'), addr.length >= 5 ? '' : 'Address must be at least 5 characters.');
+
+            if (bad) e.preventDefault();
+        });
+    })();
+</script>
+}

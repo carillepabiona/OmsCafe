@@ -365,8 +365,6 @@
           data-validate novalidate hidden>
         @Html.AntiForgeryToken()
         <input type="hidden" name="activeTab" value="availability" />
-        <input type="hidden" name="mode" id="bulkMode" />
-        <div id="bulkIds"></div>
 
         <div class="bulk-count"><strong id="bulkCount">0</strong> selected</div>
 
@@ -384,13 +382,13 @@
         </div>
 
         <div class="bulk-actions">
-            <button type="button" class="btn-primary-cafe btn-sm" onclick="submitBulk('time')">
+            <button type="submit" name="mode" value="time" class="btn-primary-cafe btn-sm">
                 <i class="ti ti-clock"></i> Apply time
             </button>
-            <button type="button" class="btn-ghost-cafe btn-sm" onclick="submitBulk('available')">
+            <button type="submit" name="mode" value="available" class="btn-ghost-cafe btn-sm" formnovalidate>
                 <i class="ti ti-circle-check"></i> Mark available
             </button>
-            <button type="button" class="btn-ghost-cafe btn-sm" onclick="submitBulk('unavailable')">
+            <button type="submit" name="mode" value="unavailable" class="btn-ghost-cafe btn-sm" formnovalidate>
                 <i class="ti ti-circle-off"></i> Mark unavailable
             </button>
             <button type="button" class="btn-ghost-cafe btn-sm" onclick="clearAvailSelection()">Clear</button>
@@ -403,7 +401,7 @@
             <div class="avail-card" data-name="@item.Name.ToLower()" data-cat="@item.CategoryName">
                 <div class="avail-header">
                     <label class="avail-check" title="Select @item.Name">
-                        <input type="checkbox" class="avail-select" value="@item.Id"
+                        <input type="checkbox" class="avail-select" name="ids" form="bulkAvailForm" value="@item.Id"
                                aria-label="Select @item.Name" onchange="onAvailSelect()" />
                         <span class="avail-check-box"></span>
                     </label>
@@ -1343,29 +1341,6 @@
         availChecked().forEach(cb => cb.checked = false);
         MM.reset(document.getElementById('bulkAvailForm'));
         onAvailSelect();
-    }
-
-    function submitBulk(mode) {
-        const form = document.getElementById('bulkAvailForm');
-        const ids  = availChecked().map(cb => cb.value);
-        if (!ids.length) return;
-
-        // "time" needs valid From/Until; "available"/"unavailable" ignore the time fields
-        if (mode === 'time' && !MM.validateForm(form)) return;
-
-        const box = document.getElementById('bulkIds');
-        box.innerHTML = '';
-        ids.forEach(id => {
-            const i = document.createElement('input');
-            i.type = 'hidden';
-            i.name = 'ids';
-            i.value = id;
-            box.appendChild(i);
-        });
-        document.getElementById('bulkMode').value = mode;
-
-        form.querySelectorAll('button').forEach(b => b.disabled = true);
-        form.submit();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
