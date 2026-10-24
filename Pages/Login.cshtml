@@ -1,156 +1,921 @@
 ﻿@page "/Login"
 @model LoginModel
 @{
-    ViewData["Title"] = "Login";
+    ViewData["Title"] = "Sign in";
 }
 
-<link rel="stylesheet" href="~/css/login.css" />
+<link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/login-lockout.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/login-register.css" asp-append-version="true" />
 
-<div class="login-container">
-    <div class="login-wrapper">
-        <div class="login-form-wrapper">
+<div class="lg-split">
 
-            <!-- Left: Brand Panel -->
-            <div class="login-accent-panel">
-                <div class="login-logo-ring">
-                    <span class="login-logo-letter">V</span>
-                </div>
-                <div class="login-brand">
-                    <h1>VERSO Cafe</h1>
-                </div>
-                <div class="login-divider"></div>
-                <p class="login-tagline">Where Every Cup Tells a Verse.</p>
+    <!-- ══ LEFT: brand panel (fills the full height) ══ -->
+    <section class="lg-hero" aria-label="VERSO Cafe">
+
+        <div class="lg-wordmark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9z"></path>
+                <path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"></path>
+                <path d="M8 3c0 1.2 1 1.4 1 2.6M12 3c0 1.2 1 1.4 1 2.6"></path>
+            </svg>
+            <span>VERSO Cafe</span>
+        </div>
+
+        <div class="lg-hero-body">
+            <p class="lg-tagline">Where every cup<br />tells a verse.</p>
+        </div>
+
+        <div class="lg-clock" aria-live="off">
+            <div class="lg-clock-time" id="clock-time">--:--</div>
+            <div class="lg-clock-meta">
+                <strong id="clock-greeting">Welcome</strong>
+                <span id="clock-date"></span>
             </div>
+        </div>
+    </section>
 
-            <!-- Right: Form Panel -->
-            <div class="login-fields">
-                <div class="login-header">
-                    <a href="/" class="login-back">← Back to home</a>
-                    <h2>Welcome back</h2>
-                    <p>Sign in to your workspace</p>
-                </div>
+    <!-- ══ RIGHT: sign-in / create account / forgot password ══ -->
+    <section class="lg-panel">
 
-                <div id="error-message" class="alert-error" style="display:none;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="8" x2="12" y2="12"></line>
-                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <span id="error-text"></span>
-                </div>
+        <div class="lg-topbar">
+            <a href="/" class="lg-back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                Back to home
+            </a>
 
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <div class="input-icon-wrapper">
-                        <input type="text" id="username" placeholder="Enter your username"
-                               class="form-input" autocomplete="username" />
-                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
+            <button type="button" class="lg-theme" data-theme-toggle aria-label="Switch to dark mode">
+                <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+                <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            </button>
+        </div>
+
+        <div class="lg-main">
+            <div class="lg-card">
+
+                <header class="lg-head">
+                    <h1 id="head-title">Welcome back</h1>
+                    <p id="head-sub">Sign in to your workspace.</p>
+                </header>
+
+                <!-- ═══════════ SIGN IN ═══════════ -->
+                <form id="login-form" class="lg-form" novalidate>
+                    @Html.AntiForgeryToken()
+
+                    <!-- Shown after a successful registration / reset request -->
+                    <div id="login-notice" class="lg-alert is-success" role="status" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
                         </svg>
+                        <span id="login-notice-text"></span>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <div class="input-icon-wrapper">
-                        <input type="password" id="password" placeholder="Enter your password"
-                               class="form-input has-toggle" autocomplete="current-password" />
-                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <!-- Lockout message with live countdown -->
+                    <div id="lockout-box" class="lg-lockout" role="alert" aria-live="assertive" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                         </svg>
-                        <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Show password">
-                            <svg id="icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                <circle cx="12" cy="12" r="3"></circle>
-                            </svg>
-                            <svg id="icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
-                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                                <line x1="1" y1="1" x2="23" y2="23"></line>
-                            </svg>
-                        </button>
+                        <div class="lg-lockout-body">
+                            <strong>Too many failed attempts</strong>
+                            <p>Sign-in is locked for your security. Try again in
+                                <span class="lg-lockout-time" id="lockout-timer">30:00</span>.</p>
+                            <p class="lg-lockout-sub">Need help sooner? Ask an administrator to reset your password.</p>
+                        </div>
                     </div>
-                </div>
 
-                <button class="btn-login" id="login-btn" onclick="login()">
-                    <span id="btn-text">Sign In</span>
-                    <span id="btn-spinner" class="spinner" style="display:none;"></span>
-                </button>
+                    <!-- Error / warning (shows attempts left) -->
+                    <div id="error-message" class="lg-alert" role="alert" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <span id="error-text"></span>
+                    </div>
+
+                    <div class="lg-field">
+                        <label for="username">Username</label>
+                        <div class="lg-control">
+                            <svg class="lg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <input type="text" id="username" name="username" class="lg-input"
+                                   placeholder="Your username" autocomplete="username"
+                                   autocapitalize="none" spellcheck="false" autofocus />
+                        </div>
+                    </div>
+
+                    <div class="lg-field">
+                        <label for="password">Password</label>
+                        <div class="lg-control">
+                            <svg class="lg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            <input type="password" id="password" name="password" class="lg-input has-toggle"
+                                   placeholder="Your password" autocomplete="current-password" />
+                            <button type="button" class="lg-eye" id="toggle-password"
+                                    aria-label="Show password" aria-pressed="false" aria-controls="password">
+                                <svg id="icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <svg id="icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <p id="caps-hint" class="lg-hint" hidden>Caps Lock is on.</p>
+
+                        <!-- NEW: forgot password link -->
+                        <div class="lg-forgot">
+                            <button type="button" class="lg-link" data-switch="forgot">Forgot password?</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="lg-submit" id="login-btn">
+                        <span id="btn-text">Sign in</span>
+                        <span id="btn-spinner" class="lg-spinner" hidden></span>
+                    </button>
+
+                    <p class="lg-switch">
+                        New here?
+                        <button type="button" data-switch="register">Create an account</button>
+                    </p>
+                </form>
+
+                <!-- ═══════════ CREATE ACCOUNT ═══════════ -->
+                <form id="register-form" class="lg-form" novalidate hidden>
+
+                    <div id="reg-error" class="lg-alert" role="alert" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <span id="reg-error-text"></span>
+                    </div>
+
+                    <div class="lg-field">
+                        <label for="reg-fullname">Full name</label>
+                        <div class="lg-control">
+                            <svg class="lg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <input type="text" id="reg-fullname" class="lg-input" maxlength="100"
+                                   placeholder="Your full name" autocomplete="name" />
+                        </div>
+                    </div>
+
+                    <div class="lg-field">
+                        <label for="reg-username">Username</label>
+                        <div class="lg-control">
+                            <svg class="lg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <circle cx="12" cy="12" r="4"></circle>
+                                <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"></path>
+                            </svg>
+                            <input type="text" id="reg-username" class="lg-input" readonly
+                                   aria-readonly="true" aria-describedby="reg-username-note"
+                                   placeholder="Generated from your full name" autocomplete="off"
+                                   autocapitalize="none" spellcheck="false" />
+                        </div>
+                        <p id="reg-username-note" class="lg-note">Generated automatically from your full name. It can't be edited.</p>
+                    </div>
+
+                    <div class="lg-field">
+                        <label for="reg-password">Password</label>
+                        <div class="lg-control">
+                            <svg class="lg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            <input type="password" id="reg-password" class="lg-input has-toggle" maxlength="64"
+                                   placeholder="Create a password" autocomplete="new-password"
+                                   aria-describedby="pw-rules" />
+                            <button type="button" class="lg-eye" data-target="reg-password"
+                                    aria-label="Show password" aria-pressed="false" aria-controls="reg-password">
+                                <svg class="eye-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <svg class="eye-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <ul class="lg-rules" id="pw-rules" aria-label="Password requirements">
+                            <li class="lg-rules-title" style="display:block">Password must have</li>
+                            <li data-rule="length"><span class="lg-rule-mark" aria-hidden="true"></span><span>At least 8 characters</span><span class="lg-sr" data-status>not met</span></li>
+                            <li data-rule="upper"><span class="lg-rule-mark" aria-hidden="true"></span><span>An uppercase letter (A-Z)</span><span class="lg-sr" data-status>not met</span></li>
+                            <li data-rule="lower"><span class="lg-rule-mark" aria-hidden="true"></span><span>A lowercase letter (a-z)</span><span class="lg-sr" data-status>not met</span></li>
+                            <li data-rule="number"><span class="lg-rule-mark" aria-hidden="true"></span><span>A number (0-9)</span><span class="lg-sr" data-status>not met</span></li>
+                            <li data-rule="special"><span class="lg-rule-mark" aria-hidden="true"></span><span>A special character (! @@ # $ % ...)</span><span class="lg-sr" data-status>not met</span></li>
+                        </ul>
+                    </div>
+
+                    <div class="lg-field">
+                        <label for="reg-confirm">Confirm password</label>
+                        <div class="lg-control">
+                            <svg class="lg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            <input type="password" id="reg-confirm" class="lg-input has-toggle" maxlength="64"
+                                   placeholder="Re-enter your password" autocomplete="new-password" />
+                            <button type="button" class="lg-eye" data-target="reg-confirm"
+                                    aria-label="Show password" aria-pressed="false" aria-controls="reg-confirm">
+                                <svg class="eye-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <svg class="eye-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <p id="match-note" class="lg-note" aria-live="polite"></p>
+                    </div>
+
+                    <button type="submit" class="lg-submit" id="reg-btn" disabled>
+                        <span id="reg-btn-text">Create account</span>
+                        <span id="reg-spinner" class="lg-spinner" hidden></span>
+                    </button>
+
+                    @if (LoginModel.RequireApproval)
+                    {
+                        <p class="lg-help">New accounts must be approved by an administrator before you can sign in.</p>
+                    }
+
+                    <p class="lg-switch">
+                        Already have an account?
+                        <button type="button" data-switch="login">Sign in</button>
+                    </p>
+                </form>
+
+                <!-- ═══════════ FORGOT PASSWORD (NEW) ═══════════ -->
+                <form id="forgot-form" class="lg-form" novalidate hidden>
+
+                    <div id="fg-error" class="lg-alert" role="alert" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <span id="fg-error-text"></span>
+                    </div>
+
+                    <div class="lg-field">
+                        <label for="fg-username">Username</label>
+                        <div class="lg-control">
+                            <svg class="lg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <input type="text" id="fg-username" class="lg-input"
+                                   placeholder="Your username" autocomplete="username"
+                                   autocapitalize="none" spellcheck="false" />
+                        </div>
+                    </div>
+
+                    <div class="lg-field">
+                        <label for="fg-password">New password</label>
+                        <div class="lg-control">
+                            <svg class="lg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            <input type="password" id="fg-password" class="lg-input has-toggle" maxlength="64"
+                                   placeholder="Choose a new password" autocomplete="new-password"
+                                   aria-describedby="fg-rules" />
+                            <button type="button" class="lg-eye" data-target="fg-password"
+                                    aria-label="Show password" aria-pressed="false" aria-controls="fg-password">
+                                <svg class="eye-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <svg class="eye-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <ul class="lg-rules" id="fg-rules" aria-label="Password requirements">
+                            <li class="lg-rules-title" style="display:block">Password must have</li>
+                            <li data-rule="length"><span class="lg-rule-mark" aria-hidden="true"></span><span>At least 8 characters</span><span class="lg-sr" data-status>not met</span></li>
+                            <li data-rule="upper"><span class="lg-rule-mark" aria-hidden="true"></span><span>An uppercase letter (A-Z)</span><span class="lg-sr" data-status>not met</span></li>
+                            <li data-rule="lower"><span class="lg-rule-mark" aria-hidden="true"></span><span>A lowercase letter (a-z)</span><span class="lg-sr" data-status>not met</span></li>
+                            <li data-rule="number"><span class="lg-rule-mark" aria-hidden="true"></span><span>A number (0-9)</span><span class="lg-sr" data-status>not met</span></li>
+                            <li data-rule="special"><span class="lg-rule-mark" aria-hidden="true"></span><span>A special character (! @@ # $ % ...)</span><span class="lg-sr" data-status>not met</span></li>
+                        </ul>
+                    </div>
+
+                    <div class="lg-field">
+                        <label for="fg-confirm">Confirm new password</label>
+                        <div class="lg-control">
+                            <svg class="lg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            <input type="password" id="fg-confirm" class="lg-input has-toggle" maxlength="64"
+                                   placeholder="Re-enter the new password" autocomplete="new-password" />
+                            <button type="button" class="lg-eye" data-target="fg-confirm"
+                                    aria-label="Show password" aria-pressed="false" aria-controls="fg-confirm">
+                                <svg class="eye-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <svg class="eye-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <p id="fg-match" class="lg-note" aria-live="polite"></p>
+                    </div>
+
+                    <button type="submit" class="lg-submit" id="fg-btn" disabled>
+                        <span id="fg-btn-text">Send reset request</span>
+                        <span id="fg-spinner" class="lg-spinner" hidden></span>
+                    </button>
+
+                    <p class="lg-help">An administrator has to approve this request. Your new password works only after that.</p>
+
+                    <p class="lg-switch">
+                        Remembered it?
+                        <button type="button" data-switch="login">Back to sign in</button>
+                    </p>
+                </form>
             </div>
-
         </div>
-    </div>
+
+        <footer class="lg-foot">
+            <p>Staff sign-in only. Your role decides what you see after signing in.</p>
+            <p class="lg-copy">© @DateTime.Now.Year VERSO Cafe</p>
+        </footer>
+    </section>
+
 </div>
-@Html.AntiForgeryToken()
+
+<!-- ═══════════ SIGN IN (3 attempts, then 30-minute lockout) ═══════════ -->
 <script>
-    function togglePassword() {
-        const input    = document.getElementById("password");
-        const isHidden = input.type === "password";
-        input.type = isHidden ? "text" : "password";
-        document.getElementById("icon-show").style.display = isHidden ? "none" : "";
-        document.getElementById("icon-hide").style.display = isHidden ? ""     : "none";
-    }
+    (function () {
+        const form       = document.getElementById("login-form");
+        const userEl     = document.getElementById("username");
+        const passEl     = document.getElementById("password");
+        const errorBox   = document.getElementById("error-message");
+        const errorTxt   = document.getElementById("error-text");
+        const noticeBox  = document.getElementById("login-notice");
+        const lockBox    = document.getElementById("lockout-box");
+        const lockTimer  = document.getElementById("lockout-timer");
+        const btn        = document.getElementById("login-btn");
+        const btnText    = document.getElementById("btn-text");
+        const spinner    = document.getElementById("btn-spinner");
+        const eyeBtn     = document.getElementById("toggle-password");
+        const iconShow   = document.getElementById("icon-show");
+        const iconHide   = document.getElementById("icon-hide");
+        const capsHint   = document.getElementById("caps-hint");
 
-    async function login() {
-        const username = document.getElementById("username").value.trim();
-        const password = document.getElementById("password").value.trim();
-        const errorBox = document.getElementById("error-message");
-        const errorTxt = document.getElementById("error-text");
-        const btn      = document.getElementById("login-btn");
+        let lockInterval = null;
+        let isLocked = false;
 
-        if (!username || !password) {
-            errorTxt.textContent   = "Please enter your username and password.";
-            errorBox.style.display = "flex";
-            return;
+        function showError(msg, field, warn) {
+            noticeBox.hidden = true;
+            errorTxt.textContent = msg;
+            errorBox.classList.toggle("is-warning", !!warn);
+            errorBox.hidden = false;
+            [userEl, passEl].forEach(el => el.removeAttribute("aria-invalid"));
+            if (field) {
+                field.setAttribute("aria-invalid", "true");
+                field.focus();
+            }
         }
 
-        errorBox.style.display                                = "none";
-        btn.disabled                                          = true;
-        document.getElementById("btn-text").textContent      = "Signing in...";
-        document.getElementById("btn-spinner").style.display = "inline-block";
+        function clearError() {
+            if (isLocked) return;
+            errorBox.hidden = true;
+            [userEl, passEl].forEach(el => el.removeAttribute("aria-invalid"));
+        }
 
-        try {
-            // ── Get the antiforgery token from the hidden input ──
-            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? "";
+        function setLoading(on) {
+            btn.disabled = on || isLocked;
+            spinner.hidden = !on;
+            btnText.textContent = on ? "Signing in…" : (isLocked ? "Locked" : "Sign in");
+        }
 
-            const res = await fetch("?handler=Login", {
-                method:  "POST",
-                headers: {
-                    "Content-Type":              "application/json",
-                    "RequestVerificationToken":  token
-                },
-                body: JSON.stringify({ username, password })
+        // ── Lockout UI ──────────────────────────────────────────
+        function formatTime(totalSec) {
+            const m = Math.floor(totalSec / 60);
+            const s = totalSec % 60;
+            return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+        }
+
+        function startLockout(seconds) {
+            isLocked = true;
+            clearInterval(lockInterval);
+
+            errorBox.hidden = true;
+            noticeBox.hidden = true;
+            lockBox.hidden = false;
+            [userEl, passEl, eyeBtn].forEach(el => el.disabled = true);
+            btn.disabled = true;
+            spinner.hidden = true;
+            btnText.textContent = "Locked";
+
+            const endsAt = Date.now() + seconds * 1000;
+
+            function update() {
+                const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+                lockTimer.textContent = formatTime(left);
+                if (left <= 0) endLockout();
+            }
+
+            update();
+            lockInterval = setInterval(update, 1000);
+        }
+
+        function endLockout() {
+            clearInterval(lockInterval);
+            isLocked = false;
+            lockBox.hidden = true;
+            [userEl, passEl, eyeBtn].forEach(el => el.disabled = false);
+            btn.disabled = false;
+            btnText.textContent = "Sign in";
+            passEl.value = "";
+            userEl.focus();
+        }
+
+        // ── Show / hide password ────────────────────────────────
+        eyeBtn.addEventListener("click", function () {
+            const reveal = passEl.type === "password";
+            passEl.type = reveal ? "text" : "password";
+            iconShow.hidden = reveal;
+            iconHide.hidden = !reveal;
+            eyeBtn.setAttribute("aria-pressed", String(reveal));
+            eyeBtn.setAttribute("aria-label", reveal ? "Hide password" : "Show password");
+            passEl.focus();
+        });
+
+        // ── Caps Lock hint ──────────────────────────────────────
+        function checkCaps(e) {
+            if (typeof e.getModifierState === "function") {
+                capsHint.hidden = !e.getModifierState("CapsLock");
+            }
+        }
+        passEl.addEventListener("keydown", checkCaps);
+        passEl.addEventListener("keyup", checkCaps);
+        passEl.addEventListener("blur", () => { capsHint.hidden = true; });
+
+        [userEl, passEl].forEach(el => el.addEventListener("input", clearError));
+
+        // ── Submit ──────────────────────────────────────────────
+        form.addEventListener("submit", async function (e) {
+            e.preventDefault();
+            if (btn.disabled || isLocked) return;
+
+            const username = userEl.value.trim();
+            const password = passEl.value; // don't trim passwords
+
+            if (!username) { showError("Enter your username.", userEl); return; }
+            if (!password) { showError("Enter your password.", passEl); return; }
+
+            clearError();
+            noticeBox.hidden = true;
+            setLoading(true);
+
+            try {
+                const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value ?? "";
+
+                const res = await fetch("?handler=Login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "RequestVerificationToken": token
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                // The server sends JSON for 200 and 429 (locked)
+                let data = null;
+                try { data = await res.json(); } catch { /* not JSON */ }
+
+                if (!data) throw new Error("Server returned " + res.status);
+
+                // 🔒 Locked out
+                if (res.status === 429 || data.locked) {
+                    setLoading(false);
+                    startLockout(data.retryAfterSeconds || 1800);
+                    return;
+                }
+
+                if (data.success) {
+                    btnText.textContent = "Redirecting…";
+                    window.location.href = data.redirect;
+                    return;
+                }
+
+                // ❌ Wrong details: show how many attempts are left
+                const warn = typeof data.attemptsLeft === "number" && data.attemptsLeft <= 1;
+                showError(data.message || "Those details don't match. Check them and try again.", passEl, warn);
+                passEl.select();
+                setLoading(false);
+
+            } catch (err) {
+                console.error("Login error:", err);
+                showError("Can't reach the server. Check your connection and try again.");
+                setLoading(false);
+            }
+        });
+    })();
+</script>
+
+<!-- ═══════════ CREATE ACCOUNT + PASSWORD RULES + VIEW SWITCH ═══════════ -->
+<script>
+    (function () {
+        const loginForm  = document.getElementById("login-form");
+        const regForm    = document.getElementById("register-form");
+        const forgotForm = document.getElementById("forgot-form");
+        const headTitle  = document.getElementById("head-title");
+        const headSub    = document.getElementById("head-sub");
+
+        const fullEl     = document.getElementById("reg-fullname");
+        const userEl     = document.getElementById("reg-username");
+        const passEl     = document.getElementById("reg-password");
+        const confirmEl  = document.getElementById("reg-confirm");
+        const matchNote  = document.getElementById("match-note");
+        const rulesEl    = document.getElementById("pw-rules");
+        const regBtn     = document.getElementById("reg-btn");
+        const regBtnText = document.getElementById("reg-btn-text");
+        const regSpinner = document.getElementById("reg-spinner");
+        const regError   = document.getElementById("reg-error");
+        const regErrTxt  = document.getElementById("reg-error-text");
+
+        const loginUser   = document.getElementById("username");
+        const loginPass   = document.getElementById("password");
+        const loginNotice = document.getElementById("login-notice");
+        const loginNoticeTxt = document.getElementById("login-notice-text");
+
+        // Same rules the server enforces
+        const RULES = {
+            length:  p => p.length >= 8,
+            upper:   p => /[A-Z]/.test(p),
+            lower:   p => /[a-z]/.test(p),
+            number:  p => /[0-9]/.test(p),
+            special: p => /[^A-Za-z0-9\s]/.test(p)
+        };
+
+        // ── Switch between Sign in / Create account / Forgot password ──
+        const VIEW_TEXT = {
+            login:    ["Welcome back",    "Sign in to your workspace."],
+            register: ["Create account",  "Fill in your details to get started."],
+            forgot:   ["Reset password",  "Choose a new password. An administrator has to approve it."]
+        };
+
+        function showView(name) {
+            loginForm.hidden  = name !== "login";
+            regForm.hidden    = name !== "register";
+            forgotForm.hidden = name !== "forgot";
+
+            headTitle.textContent = VIEW_TEXT[name][0];
+            headSub.textContent   = VIEW_TEXT[name][1];
+
+            if (name === "register")    { regError.hidden = true; fullEl.focus(); }
+            else if (name === "forgot") { document.getElementById("fg-username").focus(); }
+            else                        { loginUser.focus(); }
+        }
+
+        document.querySelectorAll("[data-switch]").forEach(b =>
+            b.addEventListener("click", () => showView(b.dataset.switch)));
+
+        // ── Show / hide password (register + forgot fields) ─────
+        document.querySelectorAll(".lg-eye[data-target]").forEach(b => {
+            b.addEventListener("click", function () {
+                const input = document.getElementById(b.dataset.target);
+                const reveal = input.type === "password";
+                input.type = reveal ? "text" : "password";
+                b.querySelector(".eye-show").hidden = reveal;
+                b.querySelector(".eye-hide").hidden = !reveal;
+                b.setAttribute("aria-pressed", String(reveal));
+                b.setAttribute("aria-label", reveal ? "Hide password" : "Show password");
+                input.focus();
+            });
+        });
+
+        // ── Live validation: marks each rule ✓ when satisfied ───
+        function evaluate() {
+            const pw = passEl.value;
+            let allRules = true;
+
+            rulesEl.querySelectorAll("li[data-rule]").forEach(li => {
+                const met = RULES[li.dataset.rule](pw);
+                li.classList.toggle("is-met", met);
+                li.querySelector("[data-status]").textContent = met ? "met" : "not met";
+                if (!met) allRules = false;
             });
 
-            if (!res.ok) {
-                throw new Error(`Server returned ${res.status}`);
-            }
+            // Username is auto-generated: ready once the preview has loaded
+            const userOk = !previewPending && userEl.value.trim().length > 0;
 
-            const data = await res.json();
-
-            if (data.success) {
-                document.getElementById("btn-text").textContent = "Redirecting…";
-                window.location.href = data.redirect;
+            // Confirm password
+            const c = confirmEl.value;
+            const match = pw.length > 0 && pw === c;
+            if (!c) {
+                matchNote.textContent = "";
+                matchNote.className = "lg-note";
+            } else if (match) {
+                matchNote.textContent = "✓ Passwords match";
+                matchNote.className = "lg-note is-ok";
             } else {
-                errorTxt.textContent   = data.message;
-                errorBox.style.display = "flex";
-                btn.disabled           = false;
-                document.getElementById("btn-text").textContent      = "Sign In";
-                document.getElementById("btn-spinner").style.display = "none";
+                matchNote.textContent = "✕ Passwords do not match";
+                matchNote.className = "lg-note is-bad";
             }
 
-        } catch (err) {
-            console.error("Login error:", err);
-            errorTxt.textContent   = "Network error. Please try again.";
-            errorBox.style.display = "flex";
-            btn.disabled           = false;
-            document.getElementById("btn-text").textContent      = "Sign In";
-            document.getElementById("btn-spinner").style.display = "none";
+            const ready = allRules && match && userOk && fullEl.value.trim().length >= 2;
+            regBtn.disabled = !ready;
+            return ready;
         }
-    }
 
-    document.addEventListener("keydown", e => {
-        if (e.key === "Enter") login();
-    });
+        [passEl, confirmEl].forEach(el => {
+            el.addEventListener("input", () => { regError.hidden = true; evaluate(); });
+        });
+
+        // ── Auto-generated username (read-only preview from the server) ──
+        let previewTimer = null;
+        let previewSeq = 0;
+        let previewPending = false;
+
+        function updateUsernamePreview() {
+            clearTimeout(previewTimer);
+            const seq = ++previewSeq;           // newest request wins
+            const name = fullEl.value.trim();
+
+            if (name.length < 2) {
+                previewPending = false;
+                userEl.value = "";
+                evaluate();
+                return;
+            }
+
+            previewPending = true;
+            evaluate();
+
+            previewTimer = setTimeout(async () => {
+                let username = "";
+                try {
+                    const res = await fetch("?handler=Username&name=" + encodeURIComponent(name),
+                                            { headers: { "Accept": "application/json" } });
+                    const data = await res.json();
+                    username = data.username || "";
+                } catch (err) {
+                    console.error("Username preview error:", err);
+                }
+                if (seq !== previewSeq) return;  // a newer request replaced this one
+                userEl.value = username;
+                previewPending = false;
+                evaluate();
+            }, 350);
+        }
+
+        fullEl.addEventListener("input", () => { regError.hidden = true; updateUsernamePreview(); });
+
+        function showRegError(msg, fieldId) {
+            regErrTxt.textContent = msg;
+            regError.hidden = false;
+            const map = { fullName: fullEl, username: userEl, password: passEl, confirmPassword: confirmEl };
+            const el = map[fieldId];
+            if (el) el.focus();
+        }
+
+        function setRegLoading(on) {
+            regSpinner.hidden = !on;
+            regBtnText.textContent = on ? "Creating account…" : "Create account";
+            regBtn.disabled = on ? true : !evaluate();
+        }
+
+        // ── Submit ──────────────────────────────────────────────
+        regForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
+            if (!evaluate() || regBtn.disabled) return;
+
+            regError.hidden = true;
+            setRegLoading(true);
+
+            try {
+                // The anti-forgery token lives in the sign-in form
+                const token = loginForm.querySelector('input[name="__RequestVerificationToken"]')?.value ?? "";
+
+                const res = await fetch("?handler=Register", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "RequestVerificationToken": token
+                    },
+                    body: JSON.stringify({
+                        fullName: fullEl.value.trim(),
+                        password: passEl.value,
+                        confirmPassword: confirmEl.value
+                    })
+                });
+
+                let data = null;
+                try { data = await res.json(); } catch { /* not JSON */ }
+                if (!data) throw new Error("Server returned " + res.status);
+
+                if (!data.success) {
+                    showRegError(data.message || "Could not create the account.", data.field);
+                    setRegLoading(false);
+                    return;
+                }
+
+                // ✅ Created: go back to sign-in with a confirmation message
+                const createdUser = data.username || userEl.value.trim();
+                regForm.reset();
+                previewPending = false;
+                evaluate();
+                setRegLoading(false);
+                showView("login");
+
+                loginNoticeTxt.textContent = data.message;
+                loginNotice.hidden = false;
+                loginUser.value = createdUser;
+                loginPass.value = "";
+                loginPass.focus();
+
+            } catch (err) {
+                console.error("Register error:", err);
+                showRegError("Can't reach the server. Check your connection and try again.");
+                setRegLoading(false);
+            }
+        });
+
+        evaluate();
+    })();
+</script>
+
+<!-- ═══════════ FORGOT PASSWORD (NEW) ═══════════ -->
+<script>
+    (function () {
+        const loginForm  = document.getElementById("login-form");
+        const form       = document.getElementById("forgot-form");
+        const userEl     = document.getElementById("fg-username");
+        const passEl     = document.getElementById("fg-password");
+        const confirmEl  = document.getElementById("fg-confirm");
+        const matchNote  = document.getElementById("fg-match");
+        const rulesEl    = document.getElementById("fg-rules");
+        const btn        = document.getElementById("fg-btn");
+        const btnText    = document.getElementById("fg-btn-text");
+        const spinner    = document.getElementById("fg-spinner");
+        const errBox     = document.getElementById("fg-error");
+        const errTxt     = document.getElementById("fg-error-text");
+
+        const loginUser    = document.getElementById("username");
+        const loginPass    = document.getElementById("password");
+        const loginNotice  = document.getElementById("login-notice");
+        const loginNoteTxt = document.getElementById("login-notice-text");
+
+        // Same rules the server enforces
+        const RULES = {
+            length:  p => p.length >= 8,
+            upper:   p => /[A-Z]/.test(p),
+            lower:   p => /[a-z]/.test(p),
+            number:  p => /[0-9]/.test(p),
+            special: p => /[^A-Za-z0-9\s]/.test(p)
+        };
+
+        function evaluate() {
+            const pw = passEl.value;
+            let allRules = true;
+
+            rulesEl.querySelectorAll("li[data-rule]").forEach(li => {
+                const met = RULES[li.dataset.rule](pw);
+                li.classList.toggle("is-met", met);
+                li.querySelector("[data-status]").textContent = met ? "met" : "not met";
+                if (!met) allRules = false;
+            });
+
+            const c = confirmEl.value;
+            const match = pw.length > 0 && pw === c;
+            if (!c) {
+                matchNote.textContent = "";
+                matchNote.className = "lg-note";
+            } else if (match) {
+                matchNote.textContent = "✓ Passwords match";
+                matchNote.className = "lg-note is-ok";
+            } else {
+                matchNote.textContent = "✕ Passwords do not match";
+                matchNote.className = "lg-note is-bad";
+            }
+
+            const ready = allRules && match && userEl.value.trim().length >= 2;
+            btn.disabled = !ready;
+            return ready;
+        }
+
+        [userEl, passEl, confirmEl].forEach(el =>
+            el.addEventListener("input", () => { errBox.hidden = true; evaluate(); }));
+
+        // Carry over whatever was typed in the sign-in username box
+        loginForm.querySelector('[data-switch="forgot"]').addEventListener("click", () => {
+            if (loginUser.value.trim()) userEl.value = loginUser.value.trim();
+            errBox.hidden = true;
+            evaluate();
+        });
+
+        function showErr(msg, fieldId) {
+            errTxt.textContent = msg;
+            errBox.hidden = false;
+            const map = { username: userEl, password: passEl, confirmPassword: confirmEl };
+            const el = map[fieldId];
+            if (el) el.focus();
+        }
+
+        function setLoading(on) {
+            spinner.hidden = !on;
+            btnText.textContent = on ? "Sending…" : "Send reset request";
+            btn.disabled = on ? true : !evaluate();
+        }
+
+        form.addEventListener("submit", async function (e) {
+            e.preventDefault();
+            if (!evaluate() || btn.disabled) return;
+
+            errBox.hidden = true;
+            setLoading(true);
+
+            try {
+                const token = loginForm.querySelector('input[name="__RequestVerificationToken"]')?.value ?? "";
+
+                const res = await fetch("?handler=Forgot", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "RequestVerificationToken": token
+                    },
+                    body: JSON.stringify({
+                        username: userEl.value.trim(),
+                        password: passEl.value,
+                        confirmPassword: confirmEl.value
+                    })
+                });
+
+                let data = null;
+                try { data = await res.json(); } catch { /* not JSON */ }
+                if (!data) throw new Error("Server returned " + res.status);
+
+                if (!data.success) {
+                    showErr(data.message || "Could not send the request.", data.field);
+                    setLoading(false);
+                    return;
+                }
+
+                // ✅ Sent: clear the form, go back to sign-in with a confirmation
+                const sentFor = userEl.value.trim();
+                form.reset();
+                evaluate();
+                setLoading(false);
+                form.querySelector('[data-switch="login"]').click();
+
+                loginNoteTxt.textContent = data.message;
+                loginNotice.hidden = false;
+                loginUser.value = sentFor;
+                loginPass.value = "";
+                loginPass.focus();
+
+            } catch (err) {
+                console.error("Forgot password error:", err);
+                showErr("Can't reach the server. Check your connection and try again.");
+                setLoading(false);
+            }
+        });
+
+        evaluate();
+    })();
+</script>
+
+<!-- ═══════════ CLOCK ═══════════ -->
+<script>
+    (function () {
+        const timeEl = document.getElementById("clock-time");
+        const greetEl = document.getElementById("clock-greeting");
+        const dateEl = document.getElementById("clock-date");
+        if (!timeEl) return;
+
+        function tick() {
+            const now = new Date();
+            const h = now.getHours();
+            timeEl.textContent = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+            dateEl.textContent = now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+            greetEl.textContent = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+        }
+        tick();
+        setInterval(tick, 15000);
+    })();
 </script>

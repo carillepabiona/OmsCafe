@@ -1,4 +1,4 @@
-
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using OmsCafe.Data;
 using OmsCafe.Hubs;
@@ -10,7 +10,28 @@ builder.Services.AddRazorPages();
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 
-builder.Services.AddDistributedMemoryCache();
+// Sessions are stored in SQL Server so they survive app restarts/recycling.
+// (Requires the SessionCache table and the Microsoft.Extensions.Caching.SqlServer package.)
+builder.Services.AddDistributedSqlServerCache(o =>
+{
+    o.ConnectionString = builder.Configuration.GetConnectionString("CafeOrderingDB");
+    o.SchemaName = "dbo";
+    o.TableName = "SessionCache";
+});
+
+// Keep the encryption keys on disk so the session/antiforgery cookies
+// stay valid after the app restarts.
+var keysFolder = new DirectoryInfo(
+    Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys"));
+keysFolder.Create(); // creates the folder if it doesn't exist
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(keysFolder)
+    .SetApplicationName("OmsCafe");
+
+builder.Services.AddScoped<OmsCafe.Services.ShiftService>();
+builder.Services.AddSingleton<OmsCafe.Services.LoginAttemptService>(); 
+//builder.Services.AddSingleton<OmsCafe.Services.Passworpolicy>(); // ← add this
 
 builder.Services.AddSession(options =>
 {
@@ -26,25 +47,26 @@ builder.Services.AddAntiforgery(options =>
 });
 
 // ── Database Connection ───────────────────────────────────
-// Reads the CafeOrderingDB connection string from appsettings.json.
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("CafeOrderingDB")));
 
-// ── Localhost Configuration ──────────────────────────────
-// Runs the application on http://localhost:5114.
-builder.WebHost.UseUrls("http://localhost:5114");
+// ── Localhost URL (development only) ──────────────────────
+if (builder.Environment.IsDevelopment())
+{
+    builder.WebHost.UseUrls("http://localhost:5114");
+}
 
 // ── Build Application ─────────────────────────────────────
 var app = builder.Build();
 
-// ── Database Migration ───────────────────────────────────
-// Applies pending EF Core migrations at application startup.
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
-}
+// ── Database Migration (disabled for hosting) ─────────────
+// The hosted database was created from a script, so the tables already exist.
+// using (var scope = app.Services.CreateScope())
+// {
+//     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+//     db.Database.Migrate();
+// }
 
 // ── Middleware Pipeline ───────────────────────────────────
 if (!app.Environment.IsDevelopment())
@@ -53,7 +75,6 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-// Uncomment if you configure HTTPS locally.
 // app.UseHttpsRedirection();
 
 app.UseStaticFiles();
@@ -61,6 +82,46 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.UseSession();
+
+// ── TEMPORARY DEBUG: remove after testing ─────────────────
+var startedAt = DateTime.UtcNow;
+app.MapGet("/debug/alive", (HttpContext c) => Results.Json(new
+{
+    startedAt,
+    pid = Environment.ProcessId,
+    session = c.Session.Id,
+    hasCookie = c.Request.Cookies.ContainsKey(".AspNetCore.Session"),
+    userId = c.Session.GetString("UserId"),
+    scheme = c.Request.Scheme,
+    host = c.Request.Host.Value
+}));
+// ──────────────────────────────────────────────────────────
+
+// Session guard: Admin/Cashier pages require a logged-in session,
+// and are never cached by the browser (so Back after logout can't show them).
+app.Use(async (ctx, next) =>
+{
+    var path = ctx.Request.Path.Value ?? "";
+
+    bool isProtected =
+        path.StartsWith("/Admin", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/Cashier", StringComparison.OrdinalIgnoreCase);
+
+    if (isProtected)
+    {
+        ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+        ctx.Response.Headers["Pragma"] = "no-cache";
+
+        if (string.IsNullOrEmpty(ctx.Session.GetString("UserId")))
+        {
+            ctx.Response.Redirect("/Login");
+            return;
+        }
+    }
+
+    await next();
+});
+
 app.UseAuthorization();
 
 // ── Endpoints ─────────────────────────────────────────────
@@ -68,5 +129,4 @@ app.MapRazorPages();
 app.MapControllers();
 app.MapHub<TableHub>("/tableHub");
 
-// ── Run Application ───────────────────────────────────────
 app.Run();

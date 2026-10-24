@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OmsCafe;
 using OmsCafe.Data;
 
 [ApiController]
@@ -9,11 +10,12 @@ public class DashboardController : ControllerBase
 {
     private readonly AppDbContext _db;
     public DashboardController(AppDbContext db) => _db = db;
+    private static DateTime Today => PhTime.Today;
 
     [HttpGet("summary")]
     public async Task<IActionResult> GetSummary()
     {
-        var today = DateTime.Today;
+        var today = PhTime.Today;
         var tomorrow = today.AddDays(1);
 
         var todayOrders = await _db.Orders
@@ -59,7 +61,7 @@ public class DashboardController : ControllerBase
     [HttpGet("recent-orders")]
     public async Task<IActionResult> GetRecentOrders()
     {
-        var today = DateTime.Today;
+        var today = PhTime.Today;
         var tomorrow = today.AddDays(1);
 
         var orders = await _db.Orders
@@ -83,7 +85,7 @@ public class DashboardController : ControllerBase
     [HttpGet("top-items")]
     public async Task<IActionResult> GetTopItems()
     {
-        var today = DateTime.Today;
+        var today = PhTime.Today;
         var tomorrow = today.AddDays(1);
 
         // Pull valid order IDs first to avoid subquery translation issues

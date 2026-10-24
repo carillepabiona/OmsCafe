@@ -11,15 +11,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>KDS — Verso Kitchen</title>
+
+    <!-- Apply saved theme before paint (no flash) -->
+    <script>
+        document.documentElement.dataset.theme = localStorage.getItem('kds-theme') || 'dark';
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="~/css/kds.css" />
+    <link rel="stylesheet" href="~/css/kds.css" asp-append-version="true" />
 </head>
 <body>
 
-    <!-- ── TOP BAR ── -->
-    <div class="kds-topbar">
+    <!-- ── TOP BAR (fixed) ── -->
+    <header class="kds-topbar">
         <div class="kds-brand">
             <span class="kds-brand-dot"></span>
             VERSO KDS
@@ -40,17 +46,18 @@
             </div>
         </div>
 
-        <div style="display:flex;align-items:center;gap:10px">
+        <div class="kds-tools">
+            <button class="sound-btn" id="theme-btn" onclick="toggleTheme()">☀️ Light</button>
             <button class="sound-btn" id="sound-btn" onclick="toggleSound()">🔔 Sound ON</button>
             <span class="kds-clock" id="clock">--:--:--</span>
         </div>
-    </div>
+    </header>
 
-    <!-- ── COLUMNS ── -->
-    <div class="kds-body">
+    <!-- ── COLUMNS (headers fixed, lists scroll) ── -->
+    <main class="kds-body">
 
         <!-- PENDING -->
-        <div class="kds-col col-pending">
+        <section class="kds-col col-pending">
             <div class="kds-col-header">
                 <div class="col-title">
                     <span class="col-dot"></span>
@@ -59,10 +66,10 @@
                 <span class="col-count" id="count-pending">0</span>
             </div>
             <div class="kds-col-body" id="col-pending"></div>
-        </div>
+        </section>
 
         <!-- PREPARING -->
-        <div class="kds-col col-preparing">
+        <section class="kds-col col-preparing">
             <div class="kds-col-header">
                 <div class="col-title">
                     <span class="col-dot"></span>
@@ -71,10 +78,10 @@
                 <span class="col-count" id="count-preparing">0</span>
             </div>
             <div class="kds-col-body" id="col-preparing"></div>
-        </div>
+        </section>
 
         <!-- READY -->
-        <div class="kds-col col-ready">
+        <section class="kds-col col-ready">
             <div class="kds-col-header">
                 <div class="col-title">
                     <span class="col-dot"></span>
@@ -83,273 +90,277 @@
                 <span class="col-count" id="count-ready">0</span>
             </div>
             <div class="kds-col-body" id="col-ready"></div>
-        </div>
+        </section>
 
-    </div>
+    </main>
 
-    <!-- ── RECALL BAR ── -->
-    <div class="recall-bar" id="recall-bar">
+    <!-- ── RECALL BAR (fixed footer) ── -->
+    <footer class="recall-bar" id="recall-bar">
         <span class="recall-label">Bumped</span>
-        <span style="color:var(--text-dim);font-size:0.72rem">Recently served orders appear here</span>
-        <div id="recall-list" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-    </div>
+        <span class="recall-hint" id="recall-hint">Recently served orders appear here</span>
+        <div class="recall-list" id="recall-list"></div>
+    </footer>
 
     <script>
-            // ── CONFIG ─────────────────────────────────────────────────────────────
-            const POLL_INTERVAL = 5000;
-            let soundEnabled  = true;
-            let knownOrderIds = new Set();
-            let bumpedOrders  = [];
-            let checkedItems  = {};   // orderId -> Set of item indices
+        // ── CONFIG ─────────────────────────────────────────────────────────────
+        const POLL_INTERVAL = 5000;
+        let soundEnabled  = true;
+        let knownOrderIds = new Set();
+        let renderedIds   = new Set();   // cards already on screen (so only NEW ones animate)
+        let bumpedOrders  = [];
+        let checkedItems  = {};          // orderId -> Set of item indices
+        let currentOrders = [];
 
-            // ── CLOCK ──────────────────────────────────────────────────────────────
-            function updateClock() {
-                const now = new Date();
-                document.getElementById('clock').textContent =
-                    now.toLocaleTimeString('en-PH', { hour12: false });
-            }
-            setInterval(updateClock, 1000);
-            updateClock();
+        // ── THEME ──────────────────────────────────────────────────────────────
+        function applyThemeLabel() {
+            const isDark = document.documentElement.dataset.theme === 'dark';
+            document.getElementById('theme-btn').textContent = isDark ? '☀️ Light' : '🌙 Dark';
+        }
 
-            // ── SOUND ──────────────────────────────────────────────────────────────
-            function toggleSound() {
-                soundEnabled = !soundEnabled;
-                document.getElementById('sound-btn').textContent =
-                    soundEnabled ? '🔔 Sound ON' : '🔕 Sound OFF';
-            }
+        function toggleTheme() {
+            const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+            document.documentElement.dataset.theme = next;
+            localStorage.setItem('kds-theme', next);
+            applyThemeLabel();
+        }
+        applyThemeLabel();
 
-            function playChime() {
-                if (!soundEnabled) return;
-                try {
-                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                    [523, 659, 784].forEach((freq, i) => {
-                        const osc  = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.value = freq;
-                        osc.type = 'sine';
-                        const t = ctx.currentTime + i * 0.18;
-                        gain.gain.setValueAtTime(0.3, t);
-                        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-                        osc.start(t);
-                        osc.stop(t + 0.4);
-                    });
-                } catch(e) {}
-            }
+        // ── CLOCK ──────────────────────────────────────────────────────────────
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent =
+                now.toLocaleTimeString('en-PH', { hour12: false });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
 
-            // ── RENDER CARD ────────────────────────────────────────────────────────
-            function renderCard(order) {
-                const checked = checkedItems[order.id] || new Set();
+        // ── SOUND ──────────────────────────────────────────────────────────────
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('sound-btn').textContent =
+                soundEnabled ? '🔔 Sound ON' : '🔕 Sound OFF';
+        }
 
-                const itemsHtml = order.items.map((item, idx) => {
-                    const done = checked.has(idx);
-                    return `
-                    <div class="kds-item${done ? ' done' : ''}" id="item-${order.id}-${idx}">
-                        <input type="checkbox" class="kds-item-check"
-                               ${done ? 'checked' : ''}
-                               onchange="toggleItem(${order.id}, ${idx}, this)" />
-                        <div class="kds-item-info">
-                            <div class="kds-item-name">${item.quantity}× ${item.name}</div>
-                            ${item.customization       ? `<div class="kds-item-mods">${item.customization}</div>`       : ''}
-                            ${item.specialInstructions ? `<div class="kds-item-note">📝 ${item.specialInstructions}</div>` : ''}
-                        </div>
-                    </div>`;
-                }).join('');
+        function playChime() {
+            if (!soundEnabled) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                [523, 659, 784].forEach((freq, i) => {
+                    const osc  = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.frequency.value = freq;
+                    osc.type = 'sine';
+                    const t = ctx.currentTime + i * 0.18;
+                    gain.gain.setValueAtTime(0.3, t);
+                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+                    osc.start(t);
+                    osc.stop(t + 0.4);
+                });
+            } catch (e) {}
+        }
 
-                // ── Action button per status ───────────────────────────────────────
-                let actionBtn = '';
-                if (order.status === 'pending') {
-                    actionBtn = `<button class="kds-btn kds-btn-start" onclick="updateStatus(${order.id}, 'preparing')">▶ Start</button>`;
-                } else if (order.status === 'preparing') {
-                    actionBtn = `<button class="kds-btn kds-btn-ready" onclick="updateStatus(${order.id}, 'ready')">✓ Ready</button>`;
-                } else if (order.status === 'ready') {
-                    // ✅ calls markServed() which sends status "served" — matches the controller's allowed transitions
-                    actionBtn = `<button class="kds-btn kds-btn-done" onclick="markServed(${order.id})">✔ Done — Served</button>`;
-                }
+        // ── RENDER CARD ────────────────────────────────────────────────────────
+        function renderCard(order) {
+            const checked = checkedItems[order.id] || new Set();
+            const isNew   = !renderedIds.has(order.id);
 
-                const tableDisplay = order.tableNumber
-                    ? `<span class="kds-table-badge">T-${order.tableNumber}</span>`
-                    : `<span class="kds-type-badge take-out">Takeout</span>`;
-
+            const itemsHtml = order.items.map((item, idx) => {
+                const done = checked.has(idx);
                 return `
-                <div class="kds-card status-${order.status}" id="card-${order.id}">
-                    <div class="kds-card-head">
-                        <span class="kds-order-num">${order.orderNumber}</span>
-                        ${tableDisplay}
-                        <span class="kds-type-badge ${order.type}">${order.type === 'dine-in' ? 'Dine-In' : 'Takeout'}</span>
-                    </div>
-                    ${order.customerName ? `<div class="kds-customer">👤 ${order.customerName}</div>` : ''}
-                    <div class="kds-items">${itemsHtml}</div>
-                    <div class="kds-card-actions">
-                        ${actionBtn}
-                        <button class="kds-btn kds-btn-bump" title="Bump order" onclick="bumpOrder(${order.id})">✕</button>
+                <div class="kds-item${done ? ' done' : ''}" id="item-${order.id}-${idx}">
+                    <input type="checkbox" class="kds-item-check"
+                           ${done ? 'checked' : ''}
+                           onchange="toggleItem(${order.id}, ${idx}, this)" />
+                    <div class="kds-item-info">
+                        <div class="kds-item-name">${item.quantity}× ${item.name}</div>
+                        ${item.customization       ? `<div class="kds-item-mods">${item.customization}</div>`       : ''}
+                        ${item.specialInstructions ? `<div class="kds-item-note">📝 ${item.specialInstructions}</div>` : ''}
                     </div>
                 </div>`;
+            }).join('');
+
+            // ── Action button per status ───────────────────────────────────────
+            let actionBtn = '';
+            if (order.status === 'pending') {
+                actionBtn = `<button class="kds-btn kds-btn-start" onclick="updateStatus(${order.id}, 'preparing')">▶ Start</button>`;
+            } else if (order.status === 'preparing') {
+                actionBtn = `<button class="kds-btn kds-btn-ready" onclick="updateStatus(${order.id}, 'ready')">✓ Ready</button>`;
+            } else if (order.status === 'ready') {
+                actionBtn = `<button class="kds-btn kds-btn-done" onclick="markServed(${order.id})">✔ Done — Served</button>`;
             }
 
-            // ── RENDER ALL COLUMNS ─────────────────────────────────────────────────
-            function renderAll(orders) {
-                const pending   = orders.filter(o => o.status === 'pending');
-                const preparing = orders.filter(o => o.status === 'preparing');
-                const ready     = orders.filter(o => o.status === 'ready');
+            const tableDisplay = order.tableNumber
+                ? `<span class="kds-table-badge">T-${order.tableNumber}</span>`
+                : `<span class="kds-type-badge take-out">Takeout</span>`;
 
-                document.getElementById('count-pending').textContent   = pending.length;
-                document.getElementById('count-preparing').textContent = preparing.length;
-                document.getElementById('count-ready').textContent     = ready.length;
-                document.getElementById('stat-pending').textContent    = pending.length;
-                document.getElementById('stat-preparing').textContent  = preparing.length;
-                document.getElementById('stat-ready').textContent      = ready.length;
+            return `
+            <div class="kds-card status-${order.status}${isNew ? ' is-new' : ''}" id="card-${order.id}">
+                <div class="kds-card-head">
+                    <span class="kds-order-num">${order.orderNumber}</span>
+                    ${tableDisplay}
+                    <span class="kds-type-badge ${order.type}">${order.type === 'dine-in' ? 'Dine-In' : 'Takeout'}</span>
+                </div>
+                ${order.customerName ? `<div class="kds-customer">👤 ${order.customerName}</div>` : ''}
+                <div class="kds-items">${itemsHtml}</div>
+                <div class="kds-card-actions">
+                    ${actionBtn}
+                    <button class="kds-btn kds-btn-bump" title="Bump order" onclick="bumpOrder(${order.id})">✕</button>
+                </div>
+            </div>`;
+        }
 
-                const empty = () => `<div class="kds-empty"><div class="kds-empty-icon">—</div><div>No orders</div></div>`;
+        // ── RENDER ALL COLUMNS ─────────────────────────────────────────────────
+        function renderAll(orders) {
+            const pending   = orders.filter(o => o.status === 'pending');
+            const preparing = orders.filter(o => o.status === 'preparing');
+            const ready     = orders.filter(o => o.status === 'ready');
 
-                document.getElementById('col-pending').innerHTML =
-                    pending.length   ? pending.map(renderCard).join('')   : empty();
-                document.getElementById('col-preparing').innerHTML =
-                    preparing.length ? preparing.map(renderCard).join('') : empty();
-                document.getElementById('col-ready').innerHTML =
-                    ready.length     ? ready.map(renderCard).join('')     : empty();
-            }
+            document.getElementById('count-pending').textContent   = pending.length;
+            document.getElementById('count-preparing').textContent = preparing.length;
+            document.getElementById('count-ready').textContent     = ready.length;
+            document.getElementById('stat-pending').textContent    = pending.length;
+            document.getElementById('stat-preparing').textContent  = preparing.length;
+            document.getElementById('stat-ready').textContent      = ready.length;
 
-            // ── STATE ──────────────────────────────────────────────────────────────
-            let currentOrders = [];
+            const empty = () => `<div class="kds-empty"><div class="kds-empty-icon">—</div><div>No orders</div></div>`;
 
-            // ── FETCH ORDERS FROM SERVER ───────────────────────────────────────────
-            // Polls /api/kds/orders every 5 seconds.
-            // Only shows pending/preparing/ready — "served" orders disappear automatically.
-            async function fetchOrders() {
-                try {
-                    const res = await fetch('/api/kds/orders');
-                    if (!res.ok) return;
-                    const data = await res.json();
+            // Keep each column's scroll position across re-renders
+            const cols = ['pending', 'preparing', 'ready'].map(k => document.getElementById('col-' + k));
+            const scrolls = cols.map(c => c.scrollTop);
 
-                    // Chime only on genuinely new pending orders
-                    const newIds = data.filter(o => o.status === 'pending').map(o => o.id);
-                    const hasNew = newIds.some(id => !knownOrderIds.has(id));
-                    if (hasNew && knownOrderIds.size > 0) playChime();
-                    newIds.forEach(id => knownOrderIds.add(id));
+            cols[0].innerHTML = pending.length   ? pending.map(renderCard).join('')   : empty();
+            cols[1].innerHTML = preparing.length ? preparing.map(renderCard).join('') : empty();
+            cols[2].innerHTML = ready.length     ? ready.map(renderCard).join('')     : empty();
 
-                    currentOrders = data;
-                    renderAll(data);
-                } catch(e) {
-                    console.error('KDS fetch error:', e);
-                }
-            }
+            cols.forEach((c, i) => { c.scrollTop = scrolls[i]; });
 
-            // ── UPDATE STATUS (pending → preparing → ready) ────────────────────────
-            async function updateStatus(orderId, newStatus) {
-                try {
-                    await fetch('/api/kds/status', {
-                        method:  'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body:    JSON.stringify({ orderId, newStatus })
-                    });
-                    await fetchOrders();
-                } catch(e) {
-                    console.error('Status update failed:', e);
-                }
-            }
+            renderedIds = new Set(orders.map(o => o.id));
+        }
 
-            // ── MARK SERVED (ready → served) ───────────────────────────────────────
-            // ✅ Sends "served" to the server — matches allowed transitions in controller.
-            // The cashier page's syncOrderStatuses() will detect "served" and move the
-            // card to the Completed tab automatically.
-            async function markServed(orderId) {
-                const order = currentOrders.find(o => o.id === orderId);
-                if (!order) return;
+        // ── RECALL BAR ─────────────────────────────────────────────────────────
+        function renderRecall() {
+            document.getElementById('recall-hint').hidden = bumpedOrders.length > 0;
+            document.getElementById('recall-list').innerHTML = bumpedOrders.map(o => `
+                <div class="recall-item" onclick="recallOrder(${o.id})" title="Recall #${o.orderNumber}">
+                    <span class="recall-num">${o.orderNumber}</span>
+                    <span>${o.tableNumber ? 'T-' + o.tableNumber : 'Takeout'}</span>
+                </div>`).join('');
+        }
 
-                try {
-                    await fetch('/api/kds/status', {
-                        method:  'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body:    JSON.stringify({ orderId, newStatus: 'served' })  // ✅ "served"
-                    });
-                } catch(e) {
-                    console.error('Mark served failed:', e);
-                }
+        function pushBumped(order) {
+            bumpedOrders = bumpedOrders.filter(o => o.id !== order.id);
+            bumpedOrders.unshift(order);
+            if (bumpedOrders.length > 5) bumpedOrders.pop();
+            renderRecall();
+        }
 
-                // Add to recall bar (keep last 5)
-                bumpedOrders.unshift(order);
-                if (bumpedOrders.length > 5) bumpedOrders.pop();
-
-                document.getElementById('recall-list').innerHTML = bumpedOrders.map(o => `
-                    <div class="recall-item" onclick="recallOrder(${o.id})" title="Recall #${o.orderNumber}">
-                        <span class="recall-num">${o.orderNumber}</span>
-                        <span>${o.tableNumber ? 'T-' + o.tableNumber : 'Takeout'}</span>
-                    </div>`).join('');
-
-                // Animate card out
-                const card = document.getElementById(`card-${orderId}`);
-                if (card) {
-                    card.style.transition = 'opacity 0.2s, transform 0.2s';
-                    card.style.opacity    = '0';
-                    card.style.transform  = 'scale(0.95)';
-                    setTimeout(() => {
-                        currentOrders = currentOrders.filter(o => o.id !== orderId);
-                        renderAll(currentOrders);
-                    }, 200);
-                } else {
-                    currentOrders = currentOrders.filter(o => o.id !== orderId);
-                    renderAll(currentOrders);
-                }
-            }
-
-            // ── BUMP ORDER (dismiss from KDS view without changing server status) ──
-            async function bumpOrder(orderId) {
-                const order = currentOrders.find(o => o.id === orderId);
-                if (!order) return;
-
-                bumpedOrders.unshift(order);
-                if (bumpedOrders.length > 5) bumpedOrders.pop();
-
-                document.getElementById('recall-list').innerHTML = bumpedOrders.map(o => `
-                    <div class="recall-item" onclick="recallOrder(${o.id})" title="Recall #${o.orderNumber}">
-                        <span class="recall-num">${o.orderNumber}</span>
-                        <span>${o.tableNumber ? 'T-' + o.tableNumber : 'Takeout'}</span>
-                    </div>`).join('');
-
-                const card = document.getElementById(`card-${orderId}`);
-                if (card) {
-                    card.style.transition = 'opacity 0.2s, transform 0.2s';
-                    card.style.opacity    = '0';
-                    card.style.transform  = 'scale(0.95)';
-                    setTimeout(() => {
-                        currentOrders = currentOrders.filter(o => o.id !== orderId);
-                        renderAll(currentOrders);
-                    }, 200);
-                } else {
-                    currentOrders = currentOrders.filter(o => o.id !== orderId);
-                    renderAll(currentOrders);
-                }
-            }
-
-            // ── RECALL ORDER ───────────────────────────────────────────────────────
-            function recallOrder(orderId) {
-                const order = bumpedOrders.find(o => o.id === orderId);
-                if (!order) return;
-                bumpedOrders = bumpedOrders.filter(o => o.id !== orderId);
-                currentOrders.push(order);
+        function removeCard(orderId) {
+            const card = document.getElementById(`card-${orderId}`);
+            const finish = () => {
+                currentOrders = currentOrders.filter(o => o.id !== orderId);
                 renderAll(currentOrders);
-                document.getElementById('recall-list').innerHTML = bumpedOrders.map(o => `
-                    <div class="recall-item" onclick="recallOrder(${o.id})">
-                        <span class="recall-num">${o.orderNumber}</span>
-                        <span>${o.tableNumber ? 'T-' + o.tableNumber : 'Takeout'}</span>
-                    </div>`).join('');
+            };
+            if (card) {
+                card.style.transition = 'opacity 0.2s, transform 0.2s';
+                card.style.opacity    = '0';
+                card.style.transform  = 'scale(0.95)';
+                setTimeout(finish, 200);
+            } else {
+                finish();
+            }
+        }
+
+        // ── FETCH ORDERS FROM SERVER ───────────────────────────────────────────
+        async function fetchOrders() {
+            try {
+                const res = await fetch('/api/kds/orders');
+                if (!res.ok) return;
+                const data = await res.json();
+
+                // Chime only on genuinely new pending orders
+                const newIds = data.filter(o => o.status === 'pending').map(o => o.id);
+                const hasNew = newIds.some(id => !knownOrderIds.has(id));
+                if (hasNew && knownOrderIds.size > 0) playChime();
+                newIds.forEach(id => knownOrderIds.add(id));
+
+                // Don't bring back orders the cook has bumped off the screen
+                const bumpedIds = new Set(bumpedOrders.map(o => o.id));
+                currentOrders = data.filter(o => !bumpedIds.has(o.id));
+                renderAll(currentOrders);
+            } catch (e) {
+                console.error('KDS fetch error:', e);
+            }
+        }
+
+        // ── UPDATE STATUS (pending → preparing → ready) ────────────────────────
+        async function updateStatus(orderId, newStatus) {
+            try {
+                await fetch('/api/kds/status', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ orderId, newStatus })
+                });
+                await fetchOrders();
+            } catch (e) {
+                console.error('Status update failed:', e);
+            }
+        }
+
+        // ── MARK SERVED (ready → served) ───────────────────────────────────────
+        async function markServed(orderId) {
+            const order = currentOrders.find(o => o.id === orderId);
+            if (!order) return;
+
+            try {
+                await fetch('/api/kds/status', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ orderId, newStatus: 'served' })
+                });
+            } catch (e) {
+                console.error('Mark served failed:', e);
             }
 
-            // ── ITEM CHECKBOX ──────────────────────────────────────────────────────
-            function toggleItem(orderId, itemIdx, checkbox) {
-                if (!checkedItems[orderId]) checkedItems[orderId] = new Set();
-                if (checkbox.checked) checkedItems[orderId].add(itemIdx);
-                else checkedItems[orderId].delete(itemIdx);
+            pushBumped(order);
+            removeCard(orderId);
+        }
 
-                const row = document.getElementById(`item-${orderId}-${itemIdx}`);
-                if (row) row.classList.toggle('done', checkbox.checked);
-            }
+        // ── BUMP ORDER (dismiss from KDS view without changing server status) ──
+        function bumpOrder(orderId) {
+            const order = currentOrders.find(o => o.id === orderId);
+            if (!order) return;
 
-            // ── INIT ───────────────────────────────────────────────────────────────
-            fetchOrders();
-            setInterval(fetchOrders, POLL_INTERVAL);
+            pushBumped(order);
+            removeCard(orderId);
+        }
+
+        // ── RECALL ORDER ───────────────────────────────────────────────────────
+        function recallOrder(orderId) {
+            const order = bumpedOrders.find(o => o.id === orderId);
+            if (!order) return;
+            bumpedOrders = bumpedOrders.filter(o => o.id !== orderId);
+            currentOrders.push(order);
+            renderAll(currentOrders);
+            renderRecall();
+            fetchOrders(); // sync with the server's real status
+        }
+
+        // ── ITEM CHECKBOX ──────────────────────────────────────────────────────
+        function toggleItem(orderId, itemIdx, checkbox) {
+            if (!checkedItems[orderId]) checkedItems[orderId] = new Set();
+            if (checkbox.checked) checkedItems[orderId].add(itemIdx);
+            else checkedItems[orderId].delete(itemIdx);
+
+            const row = document.getElementById(`item-${orderId}-${itemIdx}`);
+            if (row) row.classList.toggle('done', checkbox.checked);
+        }
+
+        // ── INIT ───────────────────────────────────────────────────────────────
+        renderRecall();
+        fetchOrders();
+        setInterval(fetchOrders, POLL_INTERVAL);
     </script>
 </body>
 </html>

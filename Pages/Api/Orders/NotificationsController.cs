@@ -21,7 +21,7 @@ namespace OmsCafe.Pages.Api.Orders
                 TableNumber = dto.TableNumber,
                 Message = dto.Message,
                 IsAcknowledged = false,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = PhTime.Now
             };
             _db.StaffNotifications.Add(notif);
             await _db.SaveChangesAsync();

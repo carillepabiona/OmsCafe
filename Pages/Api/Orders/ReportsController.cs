@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Globalization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OmsCafe.Data;
 
@@ -18,45 +19,47 @@ namespace OmsCafe.Pages.Api.Models
             string? month = null,
             int? year = null)
         {
-            // ── Build date range ───────────────────────────────────
+            // ── Date range (safe parsing, no exceptions) ──
+            var today = PhTime.Today;   // if CreatedAt is saved in UTC, use PhTime.Now.AddHours(8).Date
             DateTime from, to;
-            var today = DateTime.Today;
 
             if (period == "daily")
             {
-                var d = date != null ? DateTime.Parse(date) : today;
-                from = d;
-                to = d.AddDays(1);
+                from = DateTime.TryParse(date, out var d) ? d.Date : today;
+                to = from.AddDays(1);
             }
             else if (period == "monthly")
             {
-                var m = month != null ? DateTime.Parse(month + "-01") : new DateTime(today.Year, today.Month, 1);
-                from = m;
-                to = m.AddMonths(1);
+                from = DateTime.TryParseExact((month ?? "") + "-01", "yyyy-MM-dd",
+                           CultureInfo.InvariantCulture, DateTimeStyles.None, out var m)
+                       ? m : new DateTime(today.Year, today.Month, 1);
+                to = from.AddMonths(1);
             }
             else
             {
                 var y = year ?? today.Year;
                 from = new DateTime(y, 1, 1);
-                to = new DateTime(y + 1, 1, 1);
+                to = from.AddYears(1);
             }
 
-            // ── Query orders in range ──────────────────────────────
-            var orders = await _db.Orders
-            .Include(o => o.Items)          // was o.OrderItems
-            .Where(o => o.CreatedAt >= from && o.CreatedAt < to
-                     && o.Status != "Cancelled")
-            .OrderByDescending(o => o.CreatedAt)
-            .ToListAsync();
+            // ── Only paid, non-cancelled orders (same source as the Payments page) ──
+            var paidOrderIds = _db.Payments.Select(p => p.OrderId);
 
-            // ── Summary ────────────────────────────────────────────
+            var orders = await _db.Orders.AsNoTracking()
+                .Include(o => o.Items)
+                .Where(o => paidOrderIds.Contains(o.Id))
+                .Where(o => o.CreatedAt >= from && o.CreatedAt < to)
+                .Where(o => o.Status.ToLower() != "cancelled")
+                .OrderByDescending(o => o.CreatedAt)
+                .ToListAsync();
+
+            // ── Summary ──
             var totalOrders = orders.Count;
             var totalSales = orders.Sum(o => o.Total);
-            var avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
+            var avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0m;
             var totalItemsSold = orders.SelectMany(o => o.Items).Sum(i => i.Quantity);
 
-            // ── Top items ──────────────────────────────────────────
-            // Top items
+            // ── Top items ──
             var topItems = orders
                 .SelectMany(o => o.Items)
                 .GroupBy(i => i.Name)
@@ -70,10 +73,9 @@ namespace OmsCafe.Pages.Api.Models
                 .Take(10)
                 .ToList();
 
-
-            // ── Payment breakdown ──────────────────────────────────
+            // ── Payment breakdown ──
             var paymentBreakdown = orders
-                .GroupBy(o => o.PaymentMethod)
+                .GroupBy(o => string.IsNullOrEmpty(o.PaymentMethod) ? "Cash" : o.PaymentMethod)
                 .Select(g => new
                 {
                     method = g.Key,
@@ -83,7 +85,7 @@ namespace OmsCafe.Pages.Api.Models
                 .OrderByDescending(x => x.amount)
                 .ToList();
 
-            // Order rows
+            // ── Order rows ──
             var orderRows = orders.Select(o => new
             {
                 orderNumber = o.OrderNumber,
@@ -91,7 +93,7 @@ namespace OmsCafe.Pages.Api.Models
                 orderType = o.Type,
                 tableNumber = o.TableNumber,
                 paymentMethod = o.PaymentMethod,
-                itemCount = o.Items.Sum(i => i.Quantity),   // was o.OrderItems
+                itemCount = o.Items.Sum(i => i.Quantity),
                 totalAmount = o.Total,
                 status = o.Status,
                 createdAt = o.CreatedAt

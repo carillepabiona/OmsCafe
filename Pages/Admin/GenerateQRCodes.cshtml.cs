@@ -2,36 +2,44 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using OmsCafe.Data;
-using OmsCafe.Models;   // <-- adjust to the namespace of your Table entity
+using OmsCafe.Models;   // <-- adjust to the namespace of your CafeTable entity
 using QRCoder;
 
 namespace OmsCafe.Pages.Admin
 {
     public class GenerateQRCodesModel : PageModel
     {
-        /// <summary>
-        /// The base URL for the application.
-        /// </summary>
-      //  private const string BaseUrl = "http://omscafe.runasp.net"; // no trailing slash
+        private const string BaseUrl = "http://omscafeph.runasp.net"; // no trailing slash
+        // private const string BaseUrl = "http://10.112.65.251:5000";
 
-        private const string BaseUrl = "http://10.112.65.251:5000";
         private readonly AppDbContext _db;
 
         public GenerateQRCodesModel(AppDbContext db) => _db = db;
 
         public List<TableQRCode> QRCodes { get; set; } = new();
+        public List<ArchivedTable> ArchivedTables { get; set; } = new();
 
         [TempData] public string? Message { get; set; }
         [TempData] public string? Error { get; set; }
 
         // ── READ ──────────────────────────────────────────────────
-        public void OnGet()
+        public async Task OnGetAsync()
         {
-            var tables = _db.Tables.OrderBy(t => t.TableNumber).ToList();
+            var tables = await _db.Tables.OrderBy(t => t.TableNumber).ToListAsync();
             bool anyUpdated = false;
 
             foreach (var table in tables)
             {
+                if (table.IsArchived)
+                {
+                    ArchivedTables.Add(new ArchivedTable
+                    {
+                        TableNumber = table.TableNumber,
+                        ArchivedAt = table.ArchivedAt
+                    });
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(table.QRToken))
                 {
                     table.QRToken = NewToken();
@@ -47,61 +55,70 @@ namespace OmsCafe.Pages.Admin
                 });
             }
 
-            if (anyUpdated) _db.SaveChanges();
+            if (anyUpdated) await _db.SaveChangesAsync();
         }
 
         // ── CREATE ────────────────────────────────────────────────
         public async Task<IActionResult> OnPostCreateAsync(int tableNumber)
         {
             if (tableNumber < 1)
+            {
                 Error = "Table number must be 1 or higher.";
-            else if (await _db.Tables.AnyAsync(t => t.TableNumber == tableNumber))
-                Error = $"Table {tableNumber} already exists.";
+            }
             else
             {
-                _db.Tables.Add(new CafeTable { TableNumber = tableNumber, QRToken = NewToken() });
-                await _db.SaveChangesAsync();
-                Message = $"Table {tableNumber} added.";
+                var existing = await _db.Tables.FirstOrDefaultAsync(t => t.TableNumber == tableNumber);
+                if (existing == null)
+                {
+                    _db.Tables.Add(new CafeTable { TableNumber = tableNumber, QRToken = NewToken() });
+                    await _db.SaveChangesAsync();
+                    Message = $"Table {tableNumber} added.";
+                }
+                else if (existing.IsArchived)
+                {
+                    Error = $"Table {tableNumber} is archived. Restore it from the Archived tables section.";
+                }
+                else
+                {
+                    Error = $"Table {tableNumber} already exists.";
+                }
             }
             return RedirectToPage();
         }
 
-        // ── UPDATE (change table number) ──────────────────────────
-        public async Task<IActionResult> OnPostUpdateAsync(int currentNumber, int tableNumber)
+        // ── ARCHIVE ───────────────────────────────────────────────
+        public async Task<IActionResult> OnPostArchiveAsync(int tableNumber)
         {
-            var table = await _db.Tables.FirstOrDefaultAsync(t => t.TableNumber == currentNumber);
-            if (table == null) Error = "Table not found.";
-            else if (tableNumber < 1) Error = "Table number must be 1 or higher.";
-            else if (await _db.Tables.AnyAsync(t => t.TableNumber == tableNumber && t.TableNumber != currentNumber))
-                Error = $"Table {tableNumber} already exists.";
-            else
+            var table = await _db.Tables.FirstOrDefaultAsync(t => t.TableNumber == tableNumber && !t.IsArchived);
+            if (table == null)
             {
-                int old = table.TableNumber;
-                table.TableNumber = tableNumber;
-                await _db.SaveChangesAsync();
-                Message = $"Table {old} is now Table {tableNumber}. Reprint its QR code.";
+                Error = "Table not found.";
+                return RedirectToPage();
             }
+
+            table.IsArchived = true;
+            table.ArchivedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            Message = $"Table {tableNumber} archived. Its QR code is now inactive and order history is preserved.";
             return RedirectToPage();
         }
 
-
-        // ── DELETE ────────────────────────────────────────────────
-        public async Task<IActionResult> OnPostDeleteAsync(int tableNumber)
+        // ── RESTORE ───────────────────────────────────────────────
+        public async Task<IActionResult> OnPostRestoreAsync(int tableNumber)
         {
-            var table = await _db.Tables.FirstOrDefaultAsync(t => t.TableNumber == tableNumber);
-            if (table == null) { Error = "Table not found."; return RedirectToPage(); }
+            var table = await _db.Tables.FirstOrDefaultAsync(t => t.TableNumber == tableNumber && t.IsArchived);
+            if (table == null)
+            {
+                Error = "Archived table not found.";
+                return RedirectToPage();
+            }
 
-            try
-            {
-                _db.Tables.Remove(table);
-                await _db.SaveChangesAsync();
-                Message = $"Table {table.TableNumber} deleted.";
-            }
-            catch (DbUpdateException)
-            {
-                // e.g. a foreign key from Orders → Tables
-                Error = $"Table {table.TableNumber} can't be deleted because it is linked to existing orders.";
-            }
+            table.IsArchived = false;
+            table.ArchivedAt = null;
+            await _db.SaveChangesAsync();
+
+            Message = $"Table {tableNumber} restored. Its QR code is active again.";
             return RedirectToPage();
         }
 
@@ -120,6 +137,12 @@ namespace OmsCafe.Pages.Admin
             public int TableNumber { get; set; }
             public string Url { get; set; } = "";
             public string QRCodeBase64 { get; set; } = "";
+        }
+
+        public class ArchivedTable
+        {
+            public int TableNumber { get; set; }
+            public DateTime? ArchivedAt { get; set; }
         }
     }
 }

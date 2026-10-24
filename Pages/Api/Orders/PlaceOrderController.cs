@@ -48,7 +48,7 @@ namespace OmsCafe.Pages.Api
                 Total = dto.Items.Sum(i => i.UnitPrice * i.Quantity),
 
                 EstimatedMinutes = dto.EstimatedMinutes,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = PhTime.Now,
                 Items = dto.Items.Select(i => new OrderItem
                 {
                     MenuItemId = i.MenuItemId,

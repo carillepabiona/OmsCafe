@@ -12,6 +12,11 @@ namespace OmsCafe.Pages.Admin
 
         public MenuManagementModel(AppDbContext db) => _db = db;
 
+        // ── Settings ───────────────────────────────────────────────
+        // An item shows the "NEW" label for this many days after it was created.
+        // Editing an item does NOT restart the count (only CreatedAt is used).
+        public int NewItemDays { get; } = 7;
+
         // ── Page State ─────────────────────────────────────────────
         [BindProperty(SupportsGet = true)]
         public string ActiveTab { get; set; } = "items";
@@ -22,16 +27,32 @@ namespace OmsCafe.Pages.Admin
         public List<CustomizationViewModel> Customizations { get; set; } = new();
         public List<AddonViewModel> Addons { get; set; } = new();
 
-        // ── GET ────────────────────────────────────────────────────
+        // ── GET: page ──────────────────────────────────────────────
         public async Task OnGetAsync(string? activeTab = "items")
         {
             ActiveTab = activeTab ?? "items";
             await LoadAllAsync();
         }
 
+        // ── GET: image endpoint (?handler=Image&id=...) ────────────
+        // Images are served here (cacheable, lazy-loaded) instead of being
+        // embedded as base64 in the page HTML.
+        public async Task<IActionResult> OnGetImageAsync(Guid id)
+        {
+            var img = await _db.MenuItems.AsNoTracking()
+                .Where(m => m.Id == id && m.ImageBase64 != null)
+                .Select(m => new { m.ImageBase64, m.ImageMimeType })
+                .FirstOrDefaultAsync();
+
+            if (img == null) return NotFound();
+
+            Response.Headers.CacheControl = "private, max-age=604800"; // 7 days
+            return File(Convert.FromBase64String(img.ImageBase64!), img.ImageMimeType ?? "image/jpeg");
+        }
+
         private async Task LoadAllAsync()
         {
-            Categories = await _db.Categories
+            Categories = await _db.Categories.AsNoTracking()
                 .Where(c => !c.IsDeleted)
                 .OrderBy(c => c.DisplayOrder)
                 .Select(c => new CategoryViewModel
@@ -45,22 +66,21 @@ namespace OmsCafe.Pages.Admin
                     ItemCount = c.MenuItems.Count
                 }).ToListAsync();
 
-            // Load assigned customization & addon IDs per item
-            var assignedCustomizations = await _db.MenuItemCustomizations
-                .GroupBy(x => x.MenuItemId)
-                .Select(g => new { ItemId = g.Key, Ids = g.Select(x => x.CustomizationId).ToList() })
-                .ToListAsync();
+            // Flat queries, grouped in memory
+            var custLookup = (await _db.MenuItemCustomizations.AsNoTracking()
+                    .Select(x => new { x.MenuItemId, x.CustomizationId }).ToListAsync())
+                .ToLookup(x => x.MenuItemId, x => x.CustomizationId);
 
-            var assignedAddons = await _db.MenuItemAddons
-                .GroupBy(x => x.MenuItemId)
-                .Select(g => new { ItemId = g.Key, Ids = g.Select(x => x.AddonId).ToList() })
-                .ToListAsync();
+            var addonLookup = (await _db.MenuItemAddons.AsNoTracking()
+                    .Select(x => new { x.MenuItemId, x.AddonId }).ToListAsync())
+                .ToLookup(x => x.MenuItemId, x => x.AddonId);
 
-            var custDict = assignedCustomizations.ToDictionary(x => x.ItemId, x => x.Ids);
-            var addonDict = assignedAddons.ToDictionary(x => x.ItemId, x => x.Ids);
+            // Items created on or after this moment get the "NEW" label
+            var newSince = PhTime.Now.AddDays(-NewItemDays);
 
-            MenuItems = await _db.MenuItems
-                .Include(m => m.Category)
+            // NOTE: image data is never loaded here, only a HasImage flag.
+            // NOTE: "HH" (24-hour). "hh" on TimeOnly is the 12-hour clock and would turn 22:00 into 10:00.
+            MenuItems = await _db.MenuItems.AsNoTracking()
                 .OrderBy(m => m.DisplayOrder).ThenBy(m => m.Name)
                 .Select(m => new MenuItemViewModel
                 {
@@ -71,24 +91,22 @@ namespace OmsCafe.Pages.Admin
                     Description = m.Description,
                     Price = m.Price,
                     Cost = m.Cost,
-                    PreparationTime = m.PreparationTime,
                     IsAvailable = m.IsAvailable,
-                    AvailableFrom = m.AvailableFrom.ToString(@"hh\:mm"),
-                    AvailableUntil = m.AvailableUntil.ToString(@"hh\:mm"),
-                    ImageBase64 = m.ImageBase64,
-                    ImageMimeType = m.ImageMimeType,
-                    DisplayOrder = m.DisplayOrder
+                    AvailableFrom = m.AvailableFrom.ToString(@"HH\:mm"),
+                    AvailableUntil = m.AvailableUntil.ToString(@"HH\:mm"),
+                    DisplayOrder = m.DisplayOrder,
+                    HasImage = m.ImageBase64 != null,
+                    IsNew = m.CreatedAt >= newSince,
+                    UpdatedAt = m.UpdatedAt
                 }).ToListAsync();
 
-            // Attach assigned IDs
             foreach (var item in MenuItems)
             {
-                item.AssignedCustomizationIds = custDict.TryGetValue(item.Id, out var cids) ? cids : new();
-                item.AssignedAddonIds = addonDict.TryGetValue(item.Id, out var aids) ? aids : new();
+                item.AssignedCustomizationIds = custLookup[item.Id].ToList();
+                item.AssignedAddonIds = addonLookup[item.Id].ToList();
             }
 
-            Customizations = await _db.Customizations
-                .Include(c => c.Options)
+            Customizations = await _db.Customizations.AsNoTracking()
                 .OrderBy(c => c.DisplayOrder)
                 .Select(c => new CustomizationViewModel
                 {
@@ -98,17 +116,17 @@ namespace OmsCafe.Pages.Admin
                     IsRequired = c.IsRequired,
                     DisplayOrder = c.DisplayOrder,
                     Options = c.Options.OrderBy(o => o.DisplayOrder)
-                                   .Select(o => new CustomizationOptionViewModel
-                                   {
-                                       Id = o.Id,
-                                       OptionLabel = o.OptionLabel,
-                                       PriceModifier = o.PriceModifier,
-                                       IsDefault = o.IsDefault,
-                                       DisplayOrder = o.DisplayOrder
-                                   }).ToList()
+                        .Select(o => new CustomizationOptionViewModel
+                        {
+                            Id = o.Id,
+                            OptionLabel = o.OptionLabel,
+                            PriceModifier = o.PriceModifier,
+                            IsDefault = o.IsDefault,
+                            DisplayOrder = o.DisplayOrder
+                        }).ToList()
                 }).ToListAsync();
 
-            Addons = await _db.Addons
+            Addons = await _db.Addons.AsNoTracking()
                 .OrderBy(a => a.Name)
                 .Select(a => new AddonViewModel
                 {
@@ -120,7 +138,6 @@ namespace OmsCafe.Pages.Admin
                 }).ToListAsync();
         }
 
-
         // ── POST: Save Item Assignments ────────────────────────────
         public async Task<IActionResult> OnPostSaveItemAssignmentsAsync(
             Guid itemId,
@@ -130,19 +147,17 @@ namespace OmsCafe.Pages.Admin
         {
             try
             {
-                // Remove existing assignments
                 var existingCusts = _db.MenuItemCustomizations.Where(x => x.MenuItemId == itemId);
                 var existingAddons = _db.MenuItemAddons.Where(x => x.MenuItemId == itemId);
                 _db.MenuItemCustomizations.RemoveRange(existingCusts);
                 _db.MenuItemAddons.RemoveRange(existingAddons);
 
-                // Add new assignments
                 if (customizationIds != null)
-                    foreach (var cid in customizationIds)
+                    foreach (var cid in customizationIds.Distinct())
                         _db.MenuItemCustomizations.Add(new MenuItemCustomization { MenuItemId = itemId, CustomizationId = cid });
 
                 if (addonIds != null)
-                    foreach (var aid in addonIds)
+                    foreach (var aid in addonIds.Distinct())
                         _db.MenuItemAddons.Add(new MenuItemAddon { MenuItemId = itemId, AddonId = aid });
 
                 await _db.SaveChangesAsync();
@@ -156,9 +171,9 @@ namespace OmsCafe.Pages.Admin
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Save Menu Item (Add + Edit)
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Save Menu Item (Add + Edit) ──────────────────────
+        // Prep time is no longer entered here. The PreparationTime column is left untouched
+        // in the database, so other pages that still read it keep working.
         public async Task<IActionResult> OnPostSaveItemAsync(
             Guid? Id,
             string Name,
@@ -166,19 +181,17 @@ namespace OmsCafe.Pages.Admin
             string? Description,
             decimal Price,
             decimal Cost,
-            int PreparationTime,
             bool IsAvailable,
             string AvailableFrom,
             string AvailableUntil,
             IFormFile? ImageFile,
-            string? ExistingImageBase64,
-            string? ExistingImageMimeType,
             string activeTab = "items")
         {
             try
             {
-                string? imageBase64 = ExistingImageBase64;
-                string? imageMime = ExistingImageMimeType;
+                // Only set when a NEW image is uploaded; otherwise the existing image is left untouched.
+                string? imageBase64 = null;
+                string? imageMime = null;
 
                 if (ImageFile != null && ImageFile.Length > 0)
                 {
@@ -188,7 +201,6 @@ namespace OmsCafe.Pages.Admin
                     imageMime = ImageFile.ContentType;
                 }
 
-                // FIX: Parse into TimeSpan first, then convert to TimeOnly
                 var fromTime = TimeSpan.TryParse(AvailableFrom, out var ft)
                     ? TimeOnly.FromTimeSpan(ft)
                     : new TimeOnly(6, 0);
@@ -199,7 +211,8 @@ namespace OmsCafe.Pages.Admin
 
                 if (Id == null || Id == Guid.Empty)
                 {
-                    var item = new MenuItem
+                    // CreatedAt is what makes the item show the "NEW" label
+                    _db.MenuItems.Add(new MenuItem
                     {
                         Id = Guid.NewGuid(),
                         CategoryId = CategoryId,
@@ -207,17 +220,15 @@ namespace OmsCafe.Pages.Admin
                         Description = Description,
                         Price = Price,
                         Cost = Cost,
-                        PreparationTime = PreparationTime,
                         IsAvailable = IsAvailable,
                         AvailableFrom = fromTime,
                         AvailableUntil = untilTime,
                         ImageBase64 = imageBase64,
                         ImageMimeType = imageMime,
                         DisplayOrder = 0,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    };
-                    _db.MenuItems.Add(item);
+                        CreatedAt = PhTime.Now,
+                        UpdatedAt = PhTime.Now
+                    });
                 }
                 else
                 {
@@ -229,11 +240,10 @@ namespace OmsCafe.Pages.Admin
                     item.Description = Description;
                     item.Price = Price;
                     item.Cost = Cost;
-                    item.PreparationTime = PreparationTime;
                     item.IsAvailable = IsAvailable;
                     item.AvailableFrom = fromTime;
                     item.AvailableUntil = untilTime;
-                    item.UpdatedAt = DateTime.UtcNow;
+                    item.UpdatedAt = PhTime.Now;      // CreatedAt is not touched, so editing never re-adds "NEW"
 
                     if (imageBase64 != null)
                     {
@@ -253,61 +263,59 @@ namespace OmsCafe.Pages.Admin
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Toggle Availability
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Toggle Availability ──────────────────────────────
         public async Task<IActionResult> OnPostToggleAvailabilityAsync(Guid id, string activeTab = "items")
         {
             var item = await _db.MenuItems.FindAsync(id);
             if (item != null)
             {
                 item.IsAvailable = !item.IsAvailable;
-                item.UpdatedAt = DateTime.UtcNow;
+                item.UpdatedAt = PhTime.Now;
                 await _db.SaveChangesAsync();
             }
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Save Availability Time
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Save Availability Time ───────────────────────────
         public async Task<IActionResult> OnPostSaveAvailabilityTimeAsync(
             Guid id, string? availableFrom, string? availableUntil, string activeTab = "availability")
         {
             var item = await _db.MenuItems.FindAsync(id);
             if (item != null)
             {
-                // FIX: Convert TimeSpan → TimeOnly
                 if (TimeSpan.TryParse(availableFrom, out var ft))
                     item.AvailableFrom = TimeOnly.FromTimeSpan(ft);
 
                 if (TimeSpan.TryParse(availableUntil, out var ut))
                     item.AvailableUntil = TimeOnly.FromTimeSpan(ut);
 
-                item.UpdatedAt = DateTime.UtcNow;
+                item.UpdatedAt = PhTime.Now;
                 await _db.SaveChangesAsync();
             }
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Delete Menu Item
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Delete Menu Item ─────────────────────────────────
         public async Task<IActionResult> OnPostDeleteItemAsync(Guid id, string activeTab = "items")
         {
-            var item = await _db.MenuItems.FindAsync(id);
-            if (item != null)
+            try
             {
-                _db.MenuItems.Remove(item);
-                await _db.SaveChangesAsync();
-                TempData["Success"] = "Item deleted.";
+                var item = await _db.MenuItems.FindAsync(id);
+                if (item != null)
+                {
+                    _db.MenuItems.Remove(item);
+                    await _db.SaveChangesAsync();
+                    TempData["Success"] = "Item deleted.";
+                }
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Failed to delete item: {ex.InnerException?.Message ?? ex.Message}";
             }
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Save Category (Add + Edit)
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Save Category (Add + Edit) ───────────────────────
         public async Task<IActionResult> OnPostSaveCategoryAsync(
             Guid? Id,
             string CategoryName,
@@ -329,9 +337,9 @@ namespace OmsCafe.Pages.Admin
                         Color = Color,
                         DisplayOrder = DisplayOrder,
                         IsActive = IsActive,
-                        IsDeleted = false,      // FIX: now valid after adding to model
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
+                        IsDeleted = false,
+                        CreatedAt = PhTime.Now,
+                        UpdatedAt = PhTime.Now
                     });
                 }
                 else
@@ -344,7 +352,7 @@ namespace OmsCafe.Pages.Admin
                     cat.Color = Color;
                     cat.DisplayOrder = DisplayOrder;
                     cat.IsActive = IsActive;
-                    cat.UpdatedAt = DateTime.UtcNow;
+                    cat.UpdatedAt = PhTime.Now;
                 }
 
                 await _db.SaveChangesAsync();
@@ -358,33 +366,29 @@ namespace OmsCafe.Pages.Admin
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Delete Category
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Delete Category (soft delete) ────────────────────
         public async Task<IActionResult> OnPostDeleteCategoryAsync(Guid id, string activeTab = "categories")
         {
             var cat = await _db.Categories.FindAsync(id);
             if (cat != null)
             {
-                cat.IsDeleted = true;   // soft delete — FIX: now valid after adding to model
-                cat.UpdatedAt = DateTime.UtcNow;
+                cat.IsDeleted = true;
+                cat.UpdatedAt = PhTime.Now;
                 await _db.SaveChangesAsync();
                 TempData["Success"] = "Category deleted.";
             }
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Save Customization (Add + Edit)
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Save Customization (Add + Edit) ──────────────────
         public async Task<IActionResult> OnPostSaveCustomizationAsync(
-    Guid? Id,
-    string Name,
-    string Type,
-    bool IsRequired,
-    int DisplayOrder,
-    List<CustomizationOptionInput>? Options,
-    string activeTab = "customizations")
+            Guid? Id,
+            string Name,
+            string Type,
+            bool IsRequired,
+            int DisplayOrder,
+            List<CustomizationOptionInput>? Options,
+            string activeTab = "customizations")
         {
             try
             {
@@ -397,8 +401,8 @@ namespace OmsCafe.Pages.Admin
                         Type = Type,
                         IsRequired = IsRequired,
                         DisplayOrder = DisplayOrder,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
+                        CreatedAt = PhTime.Now,
+                        UpdatedAt = PhTime.Now
                     };
 
                     if (Options != null)
@@ -417,19 +421,14 @@ namespace OmsCafe.Pages.Admin
                 }
                 else
                 {
-                    // Load parent only — no Include, no tracked children yet
-                    var cust = await _db.Customizations
-                        .FirstOrDefaultAsync(c => c.Id == Id);
-
+                    var cust = await _db.Customizations.FirstOrDefaultAsync(c => c.Id == Id);
                     if (cust == null) return NotFound();
 
-                    // Load existing option IDs directly from DB, untracked
                     var existingOptionIds = await _db.CustomizationOptions
                         .Where(o => o.CustomizationId == Id)
                         .Select(o => o.Id)
                         .ToListAsync();
 
-                    // Delete each option by fetching a stub entity — avoids stale tracking
                     foreach (var optId in existingOptionIds)
                     {
                         var stub = new CustomizationOption { Id = optId };
@@ -437,16 +436,14 @@ namespace OmsCafe.Pages.Admin
                         _db.CustomizationOptions.Remove(stub);
                     }
 
-                    await _db.SaveChangesAsync(); // flush deletes cleanly
+                    await _db.SaveChangesAsync();
 
-                    // Update scalar fields
                     cust.Name = Name;
                     cust.Type = Type;
                     cust.IsRequired = IsRequired;
                     cust.DisplayOrder = DisplayOrder;
-                    cust.UpdatedAt = DateTime.UtcNow;
+                    cust.UpdatedAt = PhTime.Now;
 
-                    // Reinsert options with fresh GUIDs
                     var newOptions = Options?.Select((o, i) => new CustomizationOption
                     {
                         Id = Guid.NewGuid(),
@@ -458,7 +455,7 @@ namespace OmsCafe.Pages.Admin
                     }).ToList() ?? new List<CustomizationOption>();
 
                     _db.CustomizationOptions.AddRange(newOptions);
-                    await _db.SaveChangesAsync(); // flush parent update + new options
+                    await _db.SaveChangesAsync();
                 }
 
                 TempData["Success"] = "Customization saved.";
@@ -471,25 +468,28 @@ namespace OmsCafe.Pages.Admin
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Delete Customization
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Delete Customization ─────────────────────────────
         public async Task<IActionResult> OnPostDeleteCustomizationAsync(Guid id, string activeTab = "customizations")
         {
-            var cust = await _db.Customizations.Include(c => c.Options).FirstOrDefaultAsync(c => c.Id == id);
-            if (cust != null)
+            try
             {
-                _db.CustomizationOptions.RemoveRange(cust.Options);
-                _db.Customizations.Remove(cust);
-                await _db.SaveChangesAsync();
-                TempData["Success"] = "Customization deleted.";
+                var cust = await _db.Customizations.Include(c => c.Options).FirstOrDefaultAsync(c => c.Id == id);
+                if (cust != null)
+                {
+                    _db.CustomizationOptions.RemoveRange(cust.Options);
+                    _db.Customizations.Remove(cust);
+                    await _db.SaveChangesAsync();
+                    TempData["Success"] = "Customization deleted.";
+                }
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Failed to delete customization: {ex.InnerException?.Message ?? ex.Message}";
             }
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Save Addon (Add + Edit)
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Save Addon (Add + Edit) ──────────────────────────
         public async Task<IActionResult> OnPostSaveAddonAsync(
             Guid? Id,
             string Name,
@@ -509,8 +509,8 @@ namespace OmsCafe.Pages.Admin
                         Category = Category,
                         Price = Price,
                         IsActive = IsActive,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
+                        CreatedAt = PhTime.Now,
+                        UpdatedAt = PhTime.Now
                     });
                 }
                 else
@@ -522,7 +522,7 @@ namespace OmsCafe.Pages.Admin
                     addon.Category = Category;
                     addon.Price = Price;
                     addon.IsActive = IsActive;
-                    addon.UpdatedAt = DateTime.UtcNow;
+                    addon.UpdatedAt = PhTime.Now;
                 }
 
                 await _db.SaveChangesAsync();
@@ -536,24 +536,27 @@ namespace OmsCafe.Pages.Admin
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Delete Addon
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Delete Addon ─────────────────────────────────────
         public async Task<IActionResult> OnPostDeleteAddonAsync(Guid id, string activeTab = "addons")
         {
-            var addon = await _db.Addons.FindAsync(id);
-            if (addon != null)
+            try
             {
-                _db.Addons.Remove(addon);
-                await _db.SaveChangesAsync();
-                TempData["Success"] = "Add-on deleted.";
+                var addon = await _db.Addons.FindAsync(id);
+                if (addon != null)
+                {
+                    _db.Addons.Remove(addon);
+                    await _db.SaveChangesAsync();
+                    TempData["Success"] = "Add-on deleted.";
+                }
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Failed to delete add-on: {ex.InnerException?.Message ?? ex.Message}";
             }
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // POST: Save Pricing
-        // ══════════════════════════════════════════════════════════
+        // ── POST: Save Pricing ─────────────────────────────────────
         public async Task<IActionResult> OnPostSavePricingAsync(
             Guid Id, decimal Price, decimal Cost, string activeTab = "pricing")
         {
@@ -562,16 +565,13 @@ namespace OmsCafe.Pages.Admin
             {
                 item.Price = Price;
                 item.Cost = Cost;
-                item.UpdatedAt = DateTime.UtcNow;
+                item.UpdatedAt = PhTime.Now;
                 await _db.SaveChangesAsync();
                 TempData["Success"] = "Pricing updated.";
             }
             return RedirectToPage(new { activeTab });
         }
 
-        // ══════════════════════════════════════════════════════════
-        // View Models
-        // ══════════════════════════════════════════════════════════
         // ══ View Models ════════════════════════════════════════════
         public class MenuItemViewModel
         {
@@ -582,14 +582,13 @@ namespace OmsCafe.Pages.Admin
             public string? Description { get; set; }
             public decimal Price { get; set; }
             public decimal Cost { get; set; }
-            public int PreparationTime { get; set; }
             public bool IsAvailable { get; set; }
             public string AvailableFrom { get; set; } = "06:00";
             public string AvailableUntil { get; set; } = "22:00";
-            public string? ImageBase64 { get; set; }
-            public string? ImageMimeType { get; set; }
             public int DisplayOrder { get; set; }
-            // NEW
+            public bool HasImage { get; set; }
+            public bool IsNew { get; set; }               // created within the last NewItemDays days
+            public DateTime UpdatedAt { get; set; }
             public List<Guid> AssignedCustomizationIds { get; set; } = new();
             public List<Guid> AssignedAddonIds { get; set; } = new();
         }

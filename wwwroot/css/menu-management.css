@@ -650,7 +650,7 @@
     border-radius: 18px;
     display: flex;
     flex-direction: column;
-    overflow-y:auto;
+    overflow-y: auto;
     height: 85vh; /* Fixed height */
     max-height: 77vh;
     box-shadow: 0 25px 80px rgba(0,0,0,.25), 0 8px 24px rgba(0,0,0,.12);
@@ -931,10 +931,10 @@ body.modal-open {
     flex-shrink: 0;
 }
 
-    .modal-hdr-icon.danger1 {
-        background: #fee2e2;
-        color: #dc2626;
-    }
+.modal-hdr-icon.danger1 {
+    background: #fee2e2;
+    color: #dc2626;
+}
 
 .modal-hdr-text1 {
     flex: 1;
@@ -1363,4 +1363,728 @@ body.modal-open {
     background: #e6f1fb;
     color: #185fa5;
     margin-left: 4px;
+}
+
+/* wwwroot/css/menu-new-badge.css
+   "NEW" label on menu item cards. Load it AFTER menu-management.css. */
+
+/* NEW badge: top-left of the item photo (the Available/Unavailable badge stays top-right) */
+.new-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 1;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    line-height: 1.3;
+    text-transform: uppercase;
+    background: #FF8C00;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(255, 140, 0, .35);
+}
+
+/* The meta row now only holds the price, so keep it on the left */
+.item-meta {
+    justify-content: flex-start;
+}
+
+/* ══════════════════════════════════════════════════════════
+   menu-management-ui.css
+   Load AFTER menu-management.css and menu-new-badge.css.
+   Everything is scoped under .mm-page so it can't break other pages.
+   ══════════════════════════════════════════════════════════ */
+
+.mm-page {
+    --mm-orange: #FF8C00;
+    --mm-orange-dark: #e07b00;
+    --mm-orange-soft: rgba(255, 140, 0, .14);
+    --mm-danger: #B53D2D;
+    --mm-danger-bg: #FBF0EE;
+    --mm-ok: #065f46;
+    --mm-ok-bg: #ecfdf5;
+    --mm-line: var(--border, #eadfd2);
+    --mm-mute: var(--text-mute, #8a8178);
+    --mm-cream: #fffaf5;
+    --mm-cream-line: #f2e5d8;
+}
+
+    .mm-page *,
+    .mm-page *::before,
+    .mm-page *::after {
+        box-sizing: border-box;
+    }
+
+    /* ── Tab heading rows (replaces the inline-styled divs) ───── */
+    .mm-page .tab-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+    }
+
+        .mm-page .tab-head h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+    /* ── Buttons ──────────────────────────────────────────────── */
+    .mm-page .btn-primary-cafe,
+    .mm-page .btn-ghost-cafe,
+    .mm-page .btn-danger-cafe {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 40px;
+        padding: 0 18px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1;
+        cursor: pointer;
+        transition: background .15s, box-shadow .15s, transform .15s, border-color .15s;
+    }
+
+    .mm-page .btn-sm {
+        min-height: 34px;
+        padding: 0 14px;
+    }
+
+    .mm-page .btn-primary-cafe {
+        background: var(--mm-orange);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(255, 140, 0, .28);
+    }
+
+        .mm-page .btn-primary-cafe:hover {
+            background: var(--mm-orange-dark);
+            transform: translateY(-1px);
+        }
+
+    .mm-page .btn-ghost-cafe {
+        background: #fff;
+        color: #555;
+        border-color: rgba(0, 0, 0, .15);
+    }
+
+        .mm-page .btn-ghost-cafe:hover {
+            background: #faf6f1;
+            border-color: rgba(0, 0, 0, .25);
+        }
+
+    .mm-page .btn-danger-cafe {
+        background: var(--mm-danger);
+        color: #fff;
+    }
+
+        .mm-page .btn-danger-cafe:hover {
+            background: #9c3224;
+        }
+
+        .mm-page .btn-primary-cafe:disabled,
+        .mm-page .btn-ghost-cafe:disabled,
+        .mm-page .btn-danger-cafe:disabled {
+            opacity: .65;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+    .mm-page button:focus-visible,
+    .mm-page a:focus-visible,
+    .mm-page .mm-tab:focus-visible {
+        outline: 3px solid rgba(255, 140, 0, .4);
+        outline-offset: 2px;
+    }
+
+    .mm-page .btn-spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255, 255, 255, .45);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: mmSpin .7s linear infinite;
+    }
+
+@keyframes mmSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── Banners ──────────────────────────────────────────────── */
+.mm-page .error-banner,
+.mm-page .success-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border-radius: 10px;
+    border: 1px solid;
+    font-size: 14px;
+    font-weight: 500;
+    animation: mmSlideIn .25s ease;
+}
+
+.mm-page .success-banner {
+    background: var(--mm-ok-bg);
+    color: var(--mm-ok);
+    border-color: #a7f3d0;
+    justify-content: flex-start;
+}
+
+.mm-page .error-banner {
+    background: var(--mm-danger-bg);
+    color: #8e2b1f;
+    border-color: #f1c4bd;
+}
+
+    .mm-page .error-banner .close-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 18px;
+        border-radius: 8px;
+    }
+
+@keyframes mmSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Empty state ──────────────────────────────────────────── */
+.mm-page .empty-state {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 40px 16px;
+    text-align: center;
+    color: var(--mm-mute);
+    border: 2px dashed var(--mm-line);
+    border-radius: 14px;
+    background: var(--mm-cream);
+}
+
+    .mm-page .empty-state i {
+        font-size: 34px;
+        color: var(--mm-orange);
+        opacity: .75;
+    }
+
+    .mm-page .empty-state p {
+        margin: 0;
+        font-size: 14px;
+    }
+
+/* ── Form controls + validation states ────────────────────── */
+.mm-page .form-control-cafe {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 12px;
+    border: 1px solid var(--mm-line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text, #222);
+    font: inherit;
+    font-size: 14px;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+}
+
+.mm-page textarea.form-control-cafe {
+    resize: vertical;
+    min-height: 84px;
+}
+
+.mm-page .form-control-cafe:focus {
+    outline: none;
+    border-color: var(--mm-orange);
+    box-shadow: 0 0 0 3px var(--mm-orange-soft);
+}
+
+.mm-page .form-control-cafe.is-invalid,
+.mm-page .time-input.is-invalid {
+    border-color: var(--mm-danger);
+    background: #fffafa;
+}
+
+    .mm-page .form-control-cafe.is-invalid:focus {
+        box-shadow: 0 0 0 3px rgba(181, 61, 45, .16);
+    }
+
+.mm-page .form-control-cafe.is-valid {
+    border-color: #34d399;
+}
+
+.mm-page .field-error {
+    flex-basis: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--mm-danger);
+    animation: mmSlideIn .18s ease;
+}
+
+    .mm-page .field-error[hidden] {
+        display: none;
+    }
+
+    .mm-page .field-error::before {
+        content: "!";
+        flex-shrink: 0;
+        width: 14px;
+        height: 14px;
+        margin-top: 1px;
+        border-radius: 50%;
+        background: var(--mm-danger);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 14px;
+        text-align: center;
+    }
+
+.mm-page .char-count {
+    font-size: 11px;
+    text-align: right;
+    color: var(--mm-mute);
+}
+
+    .mm-page .char-count.over {
+        color: var(--mm-danger);
+        font-weight: 600;
+    }
+
+.mm-page .is-shaking {
+    animation: mmShake .35s ease;
+}
+
+@keyframes mmShake {
+    0%, 100% {
+        transform: translateX(0);
+    }
+
+    20%, 60% {
+        transform: translateX(-6px);
+    }
+
+    40%, 80% {
+        transform: translateX(6px);
+    }
+}
+
+/* ── Delete confirmation modal (was 100% inline styles) ───── */
+.mm-page .confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, .5);
+    backdrop-filter: blur(3px);
+}
+
+.mm-page .confirm-box {
+    width: 100%;
+    max-width: 380px;
+    padding: 22px;
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid var(--mm-orange-soft);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .22);
+    animation: cafeModalFade .22s ease;
+}
+
+.mm-page .confirm-top {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.mm-page .confirm-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--mm-danger-bg);
+}
+
+.mm-page .confirm-title {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+.mm-page .confirm-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #666;
+}
+
+.mm-page .confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--mm-cream-line);
+}
+
+/* ── Modal fixes ──────────────────────────────────────────── */
+/* The old .modal had height:85vh, so a 4-field category form was a giant empty box. */
+.mm-page .modal {
+    height: auto;
+    max-height: 90vh;
+}
+
+.mm-page .modal-body {
+    overflow-y: auto;
+}
+
+.mm-page .modal-hdr h2,
+.mm-page .cafe-modal-header h2 {
+    line-height: 1.25;
+}
+
+.mm-page .cafe-modal-footer {
+    background: var(--mm-cream);
+    border-top-color: var(--mm-cream-line);
+}
+
+.mm-page .cafe-modal-header {
+    background: var(--mm-cream);
+    border-bottom-color: var(--mm-cream-line);
+}
+
+body.modal-open {
+    overflow: hidden;
+}
+
+/* ── Customization option editor ──────────────────────────── */
+.mm-page .opts-section {
+    margin-top: 6px;
+    border: 1px solid var(--mm-line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.mm-page .opts-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--mm-cream);
+    border-bottom: 1px solid var(--mm-cream-line);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.mm-page #custOptionsContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+}
+
+    .mm-page #custOptionsContainer:empty::before {
+        content: "No options yet. Click “+ Add Option”.";
+        padding: 14px;
+        text-align: center;
+        font-size: 13px;
+        color: var(--mm-mute);
+    }
+
+.mm-page #custOptionsError {
+    margin: 0 10px 10px;
+}
+
+.mm-page .opt-edit-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--mm-line);
+    border-radius: 10px;
+    background: #fff;
+}
+
+    .mm-page .opt-edit-row > .form-control-cafe:not(.short) {
+        flex: 1 1 160px;
+        min-width: 0;
+    }
+
+.mm-page .opt-remove {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--mm-line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--mm-danger);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+}
+
+    .mm-page .opt-remove:hover {
+        background: var(--mm-danger-bg);
+        border-color: #f1c4bd;
+    }
+
+/* ── Pricing modal margin card ────────────────────────────── */
+.mm-page .margin-preview-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 6px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--mm-cream-line);
+    background: var(--mm-cream);
+}
+
+.mm-page .margin-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    color: var(--mm-mute);
+}
+
+.mm-page .margin-val,
+.mm-page .profit-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--mm-ok);
+}
+
+.mm-page .margin-preview-card.is-loss .margin-val,
+.mm-page .margin-preview-card.is-loss .profit-val {
+    color: var(--mm-danger);
+}
+
+.mm-page .loss-note {
+    display: none;
+    margin: 8px 0 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--mm-danger);
+}
+
+.mm-page .margin-preview-card.is-loss + .loss-note {
+    display: block;
+}
+
+/* ── Availability cards ───────────────────────────────────── */
+.mm-page .time-row {
+    flex-wrap: wrap;
+}
+
+.mm-page .time-input {
+    min-height: 36px;
+}
+
+/* ── Tabs + cards polish ──────────────────────────────────── */
+.mm-page .mm-tab {
+    border-radius: 8px 8px 0 0;
+}
+
+    .mm-page .mm-tab.active {
+        font-weight: 700;
+        background: var(--mm-cream);
+    }
+
+.mm-page .item-card,
+.mm-page .cust-card,
+.mm-page .avail-card,
+.mm-page .list-row {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .03);
+}
+
+    .mm-page .list-row:hover,
+    .mm-page .cust-card:hover,
+    .mm-page .avail-card:hover {
+        border-color: var(--mm-orange-soft);
+    }
+
+.mm-page .item-actions {
+    flex-wrap: wrap;
+}
+
+/* ══════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 992px) {
+    .mm-page .assign-cols {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    /* tabs scroll sideways instead of wrapping/overflowing */
+    .mm-page .mm-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+        .mm-page .mm-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+    .mm-page .mm-tab {
+        flex-shrink: 0;
+        white-space: nowrap;
+        padding: 10px 14px;
+    }
+
+    .mm-page .section-bar {
+        gap: 10px;
+    }
+
+    .mm-page .search-wrap {
+        flex: 1 1 100%;
+    }
+
+    .mm-page .search-input {
+        width: 100%;
+    }
+
+    .mm-page .filter-select {
+        flex: 1 1 100%;
+    }
+
+    .mm-page .items-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .mm-page .tab-head .btn-primary-cafe {
+        width: 100%;
+    }
+
+    .mm-page .list-row {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .mm-page .list-info {
+        flex: 1 1 55%;
+        min-width: 0;
+    }
+
+    .mm-page .row-actions {
+        margin-left: auto;
+    }
+
+    .mm-page .card-grid,
+    .mm-page .avail-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mm-page .pricing-table {
+        min-width: 560px;
+    }
+
+    /* every modal becomes a near-full-width sheet */
+    .mm-page .modal-backdrop,
+    .mm-page .cafe-modal-backdrop {
+        padding: 10px;
+        align-items: center;
+    }
+
+    .mm-page .modal,
+    .mm-page .cafe-modal {
+        max-height: 94vh;
+        border-radius: 16px;
+    }
+
+    .mm-page .cafe-modal-body {
+        max-height: none;
+        padding: 16px;
+    }
+
+    .mm-page .cafe-modal-header h2 {
+        font-size: 18px;
+    }
+
+    .mm-page .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .mm-page .modal-footer,
+    .mm-page .cafe-modal-footer,
+    .mm-page .confirm-actions {
+        flex-direction: column-reverse;
+        padding: 14px 16px;
+    }
+
+        .mm-page .modal-footer button,
+        .mm-page .cafe-modal-footer button,
+        .mm-page .confirm-actions button {
+            width: 100%;
+        }
+
+    .mm-page .opt-edit-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .mm-page .opt-price-wrap .short {
+        width: 100%;
+    }
+
+    .mm-page .opt-remove {
+        align-self: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    .mm-page .items-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mm-page .item-thumb {
+        height: 140px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mm-page *,
+    .mm-page *::before,
+    .mm-page *::after {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+    }
 }

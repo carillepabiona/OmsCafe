@@ -14,8 +14,8 @@ namespace OmsCafe.Models
 
         public decimal Price { get; set; }
         public bool IsActive { get; set; } = true;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = PhTime.Now;
+        public DateTime UpdatedAt { get; set; } = PhTime.Now;
 
         public ICollection<MenuItem> MenuItems { get; set; } = new List<MenuItem>();
         public ICollection<MenuItemAddon> MenuItemAddons { get; set; } = new List<MenuItemAddon>();

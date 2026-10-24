@@ -1,9 +1,39 @@
 ﻿@page
 @model AccountManagementModel
+@using OmsCafe.Models
 
 @{
     ViewData["Title"] = "Account Management";
     ViewData["Subtitle"] = "Manage staff accounts and permissions";
+
+    var viewRoute = Model.ShowArchived ? "archived" : null;
+
+    // Pagination is only rendered when records exceed the page limit (i.e. more than 1 page)
+    var showPagination = Model.TotalPages > 1;
+    var pgStart = Math.Max(1, Model.CurrentPage - 2);
+    var pgEnd   = Math.Min(Model.TotalPages, Model.CurrentPage + 2);
+}
+
+@functions {
+    static readonly string[] AvatarColors = { "av-brown", "av-green", "av-amber", "av-red", "av-purple" };
+
+    static string Initials(string? fullName)
+    {
+        var parts = (fullName ?? "").Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2) return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+        if (parts.Length == 1) return (parts[0].Length >= 2 ? parts[0][..2] : parts[0]).ToUpper();
+        return "?";
+    }
+
+    static string AvatarClass(Guid id) =>
+        AvatarColors[(int)((uint)id.GetHashCode() % (uint)AvatarColors.Length)];
+
+    static string RoleClass(string roleName) => roleName.ToLower() switch
+    {
+        "admin" => "role-admin",
+        "manager" => "role-manager",
+        _ => "role-cashier"
+    };
 }
 
 @section TopbarActions {
@@ -28,6 +58,134 @@
         <i class="ti ti-plus" aria-hidden="true"></i> Add Account
     </button>
 }
+
+<style>
+    /* ── Password checklist (Add / Edit) ───────────────── */
+    .pw-rules {
+        list-style: none;
+        margin: 8px 0 0;
+        padding: 10px 12px;
+        display: grid;
+        gap: 5px;
+        border: 1px solid rgba(128, 128, 128, .25);
+        border-radius: 8px;
+        font-size: 12.5px;
+    }
+    .pw-rules li { display: flex; align-items: center; gap: 8px; color: var(--text-mute, #7a6f64); }
+    .pw-mark {
+        flex: 0 0 16px; width: 16px; height: 16px; border-radius: 50%;
+        border: 1.5px solid #b9b2a9;
+        display: inline-grid; place-items: center;
+        font-size: 10px; font-weight: 700; line-height: 1;
+    }
+    .pw-rules li.is-met { color: #1f8a4c; }
+    .pw-rules li.is-met .pw-mark { background: #1f8a4c; border-color: #1f8a4c; color: #fff; }
+    .pw-rules li.is-met .pw-mark::before { content: "\2713"; }
+    .pw-rules li.is-unmet { color: #c0392b; }
+    .pw-rules li.is-unmet .pw-mark { border-color: #e3b1ad; color: #c0392b; }
+    .pw-rules li.is-unmet .pw-mark::before { content: "\2715"; }
+    .pw-match { margin: 6px 0 0; min-height: 1em; font-size: 12.5px; }
+    .pw-match.ok  { color: #1f8a4c; }
+    .pw-match.bad { color: #c0392b; }
+
+    /* ── Pending approval / reset panels ───────────────── */
+    .pending-card {
+        margin-bottom: 18px; padding: 16px 18px;
+        border: 1px solid rgba(240, 180, 41, .5);
+        background: rgba(240, 180, 41, .12);
+        border-radius: 12px;
+    }
+    .pending-head { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
+    .pending-count {
+        padding: 1px 9px; border-radius: 999px; font-size: 12px;
+        background: #e0a100; color: #fff;
+    }
+    .pending-sub { margin: 4px 0 12px; font-size: 13px; color: var(--text-mute, #7a6f64); }
+    .pending-list { display: grid; gap: 10px; }
+    .pending-item {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 10px 12px; border-radius: 10px;
+        border: 1px solid rgba(128, 128, 128, .2);
+        background: rgba(255, 255, 255, .5);
+    }
+    .pending-actions { display: flex; gap: 8px; }
+    .pending-actions form { margin: 0; }
+
+    /* ── Tabs: Accounts / Archived ─────────────────────── */
+    .acct-tabs { display: flex; gap: 6px; padding: 0 0 12px; }
+    .acct-tab {
+        padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 500;
+        color: var(--text-mute, #7a6f64); text-decoration: none;
+    }
+    .acct-tab:hover { background: rgba(128, 128, 128, .12); }
+    .acct-tab.active { background: var(--brown, #FF8C00); color: #fff; }
+    .acct-tab .tab-count {
+        margin-left: 4px; padding: 0 6px; border-radius: 999px; font-size: 11px;
+        background: rgba(128, 128, 128, .25);
+    }
+    .acct-tab.active .tab-count { background: rgba(255, 255, 255, .25); }
+
+    .action-btns form { margin: 0; display: inline-flex; }
+
+    /* ── Empty state row ───────────────────────────────── */
+    .no-records-row td {
+        text-align: center;
+        padding: 36px 16px !important;
+        color: var(--text-mute, #aaaaaa);
+        font-size: 14px;
+    }
+    .no-records-row td i { font-size: 26px; display: block; margin-bottom: 8px; }
+    .no-records-row:hover td { background: transparent !important; }
+
+    /* ── Pagination fixes ──────────────────────────────── */
+    .pagination-btns { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .pg-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+    .pg-btn:not(.pg-btn-active):not(.disabled):hover {
+        background: rgba(255, 140, 0, .10);
+        border-color: rgba(255, 140, 0, .35);
+        color: #e07b00;
+    }
+    .pg-btn.disabled { opacity: .4; pointer-events: none; cursor: default; }
+    .pg-ellipsis { padding: 0 4px; color: var(--text-mute, #aaaaaa); user-select: none; }
+
+    /* ── Contact fields ────────────────────────────────── */
+    textarea.form-control-cafe { resize: vertical; min-height: 64px; font-family: inherit; }
+    .view-wrap { white-space: pre-line; word-break: break-word; }
+
+    /* ── Confirmation dialog ───────────────────────────── */
+    #confirmModal .modal-dialog { max-width: 400px; }
+    .confirm-body { text-align: center; padding: 28px 24px 8px; }
+    .confirm-icon {
+        width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%;
+        display: grid; place-items: center; font-size: 26px;
+        background: rgba(255, 140, 0, .14); color: #e07b00;
+    }
+    .confirm-icon.tone-danger  { background: rgba(192, 57, 43, .12); color: #c0392b; }
+    .confirm-icon.tone-success { background: rgba(31, 138, 76, .12); color: #1f8a4c; }
+    .confirm-title { font-size: 17px; font-weight: 600; margin: 0 0 6px; }
+    .confirm-message { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-sub, #666666); word-break: break-word; }
+    .confirm-footer { justify-content: center; gap: 10px; border-top: 0; padding: 16px 24px 24px; }
+    .confirm-footer button { min-width: 112px; justify-content: center; }
+    #confirmOk.tone-danger  { background: #c0392b; border-color: #c0392b; color: #fff; }
+    #confirmOk.tone-success { background: #1f8a4c; border-color: #1f8a4c; color: #fff; }
+    #confirmOk.tone-danger:hover, #confirmOk.tone-success:hover { filter: brightness(.92); }
+</style>
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert" style="font-size:13.5px;">
+        <i class="ti ti-circle-check"></i> @Model.SuccessMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert" style="font-size:13.5px;">
+        <i class="ti ti-alert-circle"></i> @Model.ErrorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
 <!-- ── Stat Cards ───────────────────────────────────────────── -->
 <div class="stats-row">
 
@@ -37,7 +195,7 @@
         </div>
         <div class="stat-card-value">@Model.TotalAccounts</div>
         <div class="stat-card-sub">
-            <span class="text-success">↑ 2 this month</span>
+            <span class="text-success">↑ @Model.NewThisMonth this month</span>
         </div>
     </div>
 
@@ -73,12 +231,133 @@
 
 </div>
 
+<!-- ── Pending approval ──────────────────────────────────────── -->
+@if (!Model.ShowArchived && Model.PendingUsers.Any())
+{
+    <div class="pending-card" id="pendingCard">
+        <div class="pending-head">
+            <i class="ti ti-user-check" aria-hidden="true"></i>
+            Waiting for approval
+            <span class="pending-count">@Model.PendingUsers.Count</span>
+        </div>
+        <p class="pending-sub">
+            These people created their own account. Approve to let them sign in, or reject to decline the request.
+        </p>
+
+        <div class="pending-list">
+            @foreach (var p in Model.PendingUsers)
+            {
+                var pendingRole = p.Role?.RoleName ?? "—";
+                var requestedOn = p.CreatedAt.HasValue ? p.CreatedAt.Value.ToString("MMM dd, yyyy h:mm tt") : "—";
+
+                <div class="pending-item">
+                    <div class="avatar-cell">
+                        <div class="av av-amber">@Initials(p.FullName)</div>
+                        <div>
+                            <div class="av-name">@p.FullName</div>
+                            <div class="av-email">@p.Username · @pendingRole · requested @requestedOn</div>
+                        </div>
+                    </div>
+
+                    <div class="pending-actions">
+                        <form method="post" asp-page-handler="Approve"
+                              data-confirm
+                              data-confirm-title="Approve account"
+                              data-confirm-message="Approve @(p.FullName)? They will be able to sign in right away."
+                              data-confirm-ok="Approve"
+                              data-confirm-tone="success"
+                              data-confirm-icon="ti-user-check">
+                            <input type="hidden" name="UserId" value="@p.UserId" />
+                            <button type="submit" class="btn-primary-cafe">
+                                <i class="ti ti-check" aria-hidden="true"></i> Approve
+                            </button>
+                        </form>
+                        <form method="post" asp-page-handler="Reject"
+                              data-confirm
+                              data-confirm-title="Reject request"
+                              data-confirm-message="Reject @(p.FullName)'s request? It will be moved to the Archived tab."
+                              data-confirm-ok="Reject"
+                              data-confirm-tone="danger"
+                              data-confirm-icon="ti-user-x">
+                            <input type="hidden" name="UserId" value="@p.UserId" />
+                            <button type="submit" class="btn-ghost-cafe">
+                                <i class="ti ti-x" aria-hidden="true"></i> Reject
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<!-- ── Password reset requests ───────────────────────────────── -->
+@if (!Model.ShowArchived && Model.PendingResets.Any())
+{
+    <div class="pending-card" id="resetCard">
+        <div class="pending-head">
+            <i class="ti ti-key" aria-hidden="true"></i>
+            Password reset requests
+            <span class="pending-count">@Model.PendingResets.Count</span>
+        </div>
+        <p class="pending-sub">
+            These staff members forgot their password and chose a new one. Confirm it is really them
+            (in person or by phone) before approving. The new password only works after you approve it.
+        </p>
+
+        <div class="pending-list">
+            @foreach (var r in Model.PendingResets)
+            {
+                var who = r.User!;
+                var asked = r.RequestedAt.ToString("MMM dd, yyyy h:mm tt");
+
+                <div class="pending-item">
+                    <div class="avatar-cell">
+                        <div class="av av-amber">@Initials(who.FullName)</div>
+                        <div>
+                            <div class="av-name">@who.FullName</div>
+                            <div class="av-email">@who.Username · requested @asked</div>
+                        </div>
+                    </div>
+
+                    <div class="pending-actions">
+                        <form method="post" asp-page-handler="ApproveReset"
+                              data-confirm
+                              data-confirm-title="Approve password reset"
+                              data-confirm-message="Activate the new password for @(who.FullName)? Only do this after you have confirmed the request really came from them."
+                              data-confirm-ok="Approve"
+                              data-confirm-tone="success"
+                              data-confirm-icon="ti-key">
+                            <input type="hidden" name="RequestId" value="@r.RequestId" />
+                            <button type="submit" class="btn-primary-cafe">
+                                <i class="ti ti-check" aria-hidden="true"></i> Approve
+                            </button>
+                        </form>
+                        <form method="post" asp-page-handler="RejectReset"
+                              data-confirm
+                              data-confirm-title="Reject password reset"
+                              data-confirm-message="Reject the password reset request from @(who.FullName)? Their current password stays the same."
+                              data-confirm-ok="Reject"
+                              data-confirm-tone="danger"
+                              data-confirm-icon="ti-circle-x">
+                            <input type="hidden" name="RequestId" value="@r.RequestId" />
+                            <button type="submit" class="btn-ghost-cafe">
+                                <i class="ti ti-x" aria-hidden="true"></i> Reject
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
 <!-- ── Accounts Table ────────────────────────────────────────── -->
 <div class="table-card">
 
     <div class="table-card-header">
         <div class="table-card-title">
-            Staff Accounts <span>@Model.TotalAccounts total</span>
+            @(Model.ShowArchived ? "Archived Accounts" : "Staff Accounts") <span>@Model.ListTotal total</span>
         </div>
         <div class="table-tools">
             <div class="search-box">
@@ -92,12 +371,25 @@
                     <option value="@role.RoleName">@role.RoleName</option>
                 }
             </select>
-            <select class="filter-select" id="statusFilter">
-                <option value="">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-            </select>
+            @if (!Model.ShowArchived)
+            {
+                <select class="filter-select" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+            }
         </div>
+    </div>
+
+    <div class="acct-tabs" style="padding:0 16px 12px">
+        <a asp-page="./AccountManagement" class="acct-tab @(!Model.ShowArchived ? "active" : "")">
+            <i class="ti ti-users" aria-hidden="true"></i> Accounts
+        </a>
+        <a asp-page="./AccountManagement" asp-route-view="archived" class="acct-tab @(Model.ShowArchived ? "active" : "")">
+            <i class="ti ti-archive" aria-hidden="true"></i> Archived
+            <span class="tab-count">@Model.ArchivedCount</span>
+        </a>
     </div>
 
     <table class="data-table">
@@ -105,72 +397,50 @@
             <tr>
                 <th>Staff Member</th>
                 <th>Role</th>
-                <th>Date Created</th>
+                <th>@(Model.ShowArchived ? "Archived On" : "Date Created")</th>
                 <th>Status</th>
                 <th>Actions</th>
             </tr>
         </thead>
         <tbody>
 
-            @if (!Model.Users.Any())
+            @foreach (var user in Model.Users)
             {
-                <tr>
-                    <td colspan="5" style="text-align:center;padding:32px;color:var(--text-mute);">
-                        <i class="ti ti-users-off" style="font-size:24px;display:block;margin-bottom:8px;"></i>
-                        No accounts found.
-                    </td>
-                </tr>
-            }
-            else
-            {
-                @foreach (var user in Model.Users)
-                {
-                    var nameParts = user.FullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    var initials = nameParts.Length >= 2
-                        ? $"{nameParts[0][0]}{nameParts[^1][0]}"
-                        : user.FullName.Length >= 2
-                            ? user.FullName[..2]
-                            : user.FullName;
+                var roleName = user.Role?.RoleName ?? "—";
+                var rejected = user.ApprovalStatus == AccountApproval.Rejected;
 
-                    var roleName = user.Role?.RoleName ?? "—";
-                    var roleClass = roleName.ToLower() switch
-                    {
-                        "admin" => "role-admin",
-                        "manager" => "role-manager",
-                        "cashier" => "role-cashier",
-                        _ => "role-cashier"
-                    };
+                var statusLabel = Model.ShowArchived
+                    ? (rejected ? "Rejected" : "Archived")
+                    : (user.IsActive ? "Active" : "Inactive");
+                var dotClass = (!Model.ShowArchived && user.IsActive) ? "dot-active" : "dot-inactive";
 
-                    var avatarColors = new[] { "av-brown", "av-green", "av-amber", "av-red", "av-purple" };
-                    var avatarClass = avatarColors[Math.Abs(user.UserId.GetHashCode()) % avatarColors.Length];
+                var shownDate = Model.ShowArchived ? user.ArchivedAt : user.CreatedAt;
+                var dateText = shownDate.HasValue ? shownDate.Value.ToString("MMM dd, yyyy") : "—";
+                var createdText = user.CreatedAt.HasValue ? user.CreatedAt.Value.ToString("MMM dd, yyyy") : "—";
 
-                    var statusLabel = user.IsActive ? "Active" : "Inactive";
-                    var dotClass = user.IsActive ? "dot-active" : "dot-inactive";
-                    var createdAt = user.CreatedAt.HasValue
-                        ? user.CreatedAt.Value.ToString("MMM dd, yyyy")
-                        : "—";
-
-                    <tr>
-                        <td>
-                            <div class="avatar-cell">
-                                <div class="av @avatarClass">@initials.ToUpper()</div>
-                                <div>
-                                    <div class="av-name">@user.FullName</div>
-                                    <div class="av-email">@user.Username</div>
-                                </div>
+                <tr data-row>
+                    <td>
+                        <div class="avatar-cell">
+                            <div class="av @AvatarClass(user.UserId)">@Initials(user.FullName)</div>
+                            <div>
+                                <div class="av-name">@user.FullName</div>
+                                <div class="av-email">@user.Username</div>
                             </div>
-                        </td>
-                        <td>
-                            <span class="role-badge @roleClass">@roleName</span>
-                        </td>
-                        <td style="color:var(--text-mute);font-size:13px">@createdAt</td>
-                        <td>
-                            <span class="status-dot">
-                                <span class="dot @dotClass"></span> @statusLabel
-                            </span>
-                        </td>
-                        <td>
-                            <div class="action-btns">
+                        </div>
+                    </td>
+                    <td>
+                        <span class="role-badge @RoleClass(roleName)">@roleName</span>
+                    </td>
+                    <td style="color:var(--text-mute);font-size:13px">@dateText</td>
+                    <td>
+                        <span class="status-dot">
+                            <span class="dot @dotClass"></span> @statusLabel
+                        </span>
+                    </td>
+                    <td>
+                        <div class="action-btns">
+                            @if (!Model.ShowArchived)
+                            {
                                 <button class="icon-btn"
                                         title="Edit account"
                                         data-bs-toggle="modal"
@@ -179,64 +449,127 @@
                                         data-fullname="@user.FullName"
                                         data-username="@user.Username"
                                         data-roleid="@user.RoleId"
-                                        data-isactive="@user.IsActive.ToString().ToLower()">
+                                        data-isactive="@user.IsActive.ToString().ToLower()"
+                                        data-contact="@user.ContactNumber"
+                                        data-address="@user.Address">
                                     <i class="ti ti-edit" aria-hidden="true"></i>
                                 </button>
-                                <button class="icon-btn" title="View account"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#viewAccountModal"
-                                        data-userid="@user.UserId"
-                                        data-fullname="@user.FullName"
-                                        data-username="@user.Username"
-                                        data-role="@roleName"
-                                        data-status="@statusLabel"
-                                        data-created="@createdAt">
-                                    <i class="ti ti-eye" aria-hidden="true"></i>
-                                </button>
+                            }
+
+                            <button class="icon-btn" title="View account"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#viewAccountModal"
+                                    data-userid="@user.UserId"
+                                    data-fullname="@user.FullName"
+                                    data-username="@user.Username"
+                                    data-role="@roleName"
+                                    data-status="@statusLabel"
+                                    data-created="@createdText"
+                                    data-contact="@user.ContactNumber"
+                                    data-address="@user.Address">
+                                <i class="ti ti-eye" aria-hidden="true"></i>
+                            </button>
+
+                            @if (Model.ShowArchived)
+                            {
+                                <form method="post" asp-page-handler="Restore"
+                                      data-confirm
+                                      data-confirm-title="@(rejected ? "Send back to approval queue" : "Restore account")"
+                                      data-confirm-message="@(rejected ? $"Send {user.FullName}'s request back to the approval queue for a new decision?" : $"Restore {user.FullName}? The account stays inactive until you set it to Active in Edit.")"
+                                      data-confirm-ok="@(rejected ? "Send back" : "Restore")"
+                                      data-confirm-tone="primary"
+                                      data-confirm-icon="ti-arrow-back-up">
+                                    <input type="hidden" name="UserId" value="@user.UserId" />
+                                    <button type="submit" class="icon-btn"
+                                            title="@(rejected ? "Send back to approval queue" : "Restore account")">
+                                        <i class="ti ti-arrow-back-up" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            }
+                            else
+                            {
                                 <button class="icon-btn icon-btn-danger"
-                                        title="Delete account"
+                                        title="Archive account"
                                         data-bs-toggle="modal"
-                                        data-bs-target="#deleteConfirmModal"
+                                        data-bs-target="#archiveConfirmModal"
                                         data-userid="@user.UserId"
                                         data-fullname="@user.FullName">
-                                    <i class="ti ti-trash" aria-hidden="true"></i>
+                                    <i class="ti ti-archive" aria-hidden="true"></i>
                                 </button>
-                            </div>
-                        </td>
-                    </tr>
-                }
+                            }
+                        </div>
+                    </td>
+                </tr>
             }
+
+            @* Always present; shown by the server when the list is empty, and by JS when search/filters match nothing *@
+            <tr id="noResultsRow" class="no-records-row" style="@(Model.Users.Any() ? "display:none" : "")">
+                <td colspan="5">
+                    <i class="ti ti-users-off" aria-hidden="true"></i>
+                    No records found
+                </td>
+            </tr>
 
         </tbody>
     </table>
 
-    <div class="pagination-bar">
-        <p class="pagination-info">
-            Showing @Model.PageStart–@Model.PageEnd of @Model.TotalAccounts accounts
-        </p>
-        <div class="pagination-btns">
-            <a asp-page="./AccountManagement"
-               asp-route-page="@(Model.CurrentPage - 1)"
-               class="pg-btn @(Model.CurrentPage <= 1 ? "disabled" : "")"
-               aria-label="Previous page">
-                <i class="ti ti-chevron-left" aria-hidden="true"></i>
-            </a>
+    @if (showPagination)
+    {
+        <div class="pagination-bar">
+            <p class="pagination-info">
+                Showing @Model.PageStart–@Model.PageEnd of @Model.ListTotal accounts
+            </p>
+            <nav class="pagination-btns" aria-label="Accounts pagination">
 
-            @for (int i = 1; i <= Model.TotalPages; i++)
-            {
                 <a asp-page="./AccountManagement"
-                   asp-route-page="@i"
-                   class="pg-btn @(i == Model.CurrentPage ? "pg-btn-active" : "")">@i</a>
-            }
+                   asp-route-pageNumber="@(Model.CurrentPage - 1)"
+                   asp-route-view="@viewRoute"
+                   class="pg-btn @(Model.CurrentPage <= 1 ? "disabled" : "")"
+                   aria-label="Previous page"
+                   aria-disabled="@(Model.CurrentPage <= 1 ? "true" : "false")"
+                   tabindex="@(Model.CurrentPage <= 1 ? "-1" : "0")">
+                    <i class="ti ti-chevron-left" aria-hidden="true"></i>
+                </a>
 
-            <a asp-page="./AccountManagement"
-               asp-route-page="@(Model.CurrentPage + 1)"
-               class="pg-btn @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")"
-               aria-label="Next page">
-                <i class="ti ti-chevron-right" aria-hidden="true"></i>
-            </a>
+                @if (pgStart > 1)
+                {
+                    <a asp-page="./AccountManagement" asp-route-pageNumber="1" asp-route-view="@viewRoute" class="pg-btn">1</a>
+                    @if (pgStart > 2)
+                    {
+                        <span class="pg-ellipsis">…</span>
+                    }
+                }
+
+                @for (int i = pgStart; i <= pgEnd; i++)
+                {
+                    <a asp-page="./AccountManagement"
+                       asp-route-pageNumber="@i"
+                       asp-route-view="@viewRoute"
+                       class="pg-btn @(i == Model.CurrentPage ? "pg-btn-active" : "")"
+                       aria-current="@(i == Model.CurrentPage ? "page" : null)">@i</a>
+                }
+
+                @if (pgEnd < Model.TotalPages)
+                {
+                    @if (pgEnd < Model.TotalPages - 1)
+                    {
+                        <span class="pg-ellipsis">…</span>
+                    }
+                    <a asp-page="./AccountManagement" asp-route-pageNumber="@Model.TotalPages" asp-route-view="@viewRoute" class="pg-btn">@Model.TotalPages</a>
+                }
+
+                <a asp-page="./AccountManagement"
+                   asp-route-pageNumber="@(Model.CurrentPage + 1)"
+                   asp-route-view="@viewRoute"
+                   class="pg-btn @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")"
+                   aria-label="Next page"
+                   aria-disabled="@(Model.CurrentPage >= Model.TotalPages ? "true" : "false")"
+                   tabindex="@(Model.CurrentPage >= Model.TotalPages ? "-1" : "0")">
+                    <i class="ti ti-chevron-right" aria-hidden="true"></i>
+                </a>
+            </nav>
         </div>
-    </div>
+    }
 
 </div>
 
@@ -254,7 +587,13 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form method="post" asp-page-handler="Add">
+            <form method="post" asp-page-handler="Add" data-pw-form
+                  data-confirm
+                  data-confirm-title="Create account"
+                  data-confirm-message="Create the account for {name} and save their contact details on record?"
+                  data-confirm-ok="Create account"
+                  data-confirm-tone="primary"
+                  data-confirm-icon="ti-user-plus">
                 @Html.AntiForgeryToken()
                 <div class="modal-body">
 
@@ -291,15 +630,38 @@
                     </div>
 
                     <div class="form-group">
+                        <label class="form-label">Contact Number</label>
+                        <input type="tel" name="ContactNumber" class="form-control-cafe"
+                               data-contact-input
+                               placeholder="e.g. 09171234567" required
+                               maxlength="11" minlength="11" inputmode="numeric"
+                               pattern="[0-9]{11}"
+                               title="Contact number must be exactly 11 digits (numbers only)."
+                               autocomplete="off" />
+                        <p class="pw-match" data-contact-msg aria-live="polite"></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Address</label>
+                        <textarea name="Address" class="form-control-cafe" rows="2"
+                                  placeholder="House no., street, barangay, city" required
+                                  minlength="5" maxlength="250"></textarea>
+                    </div>
+
+                    <div class="form-group">
                         <label class="form-label">Password</label>
                         <input type="password" name="Password" class="form-control-cafe"
-                               placeholder="Minimum 8 characters" required minlength="8" />
+                               placeholder="Create a password" required minlength="8" maxlength="64"
+                               autocomplete="new-password" />
+                        <ul class="pw-rules" data-pw-rules aria-label="Password requirements"></ul>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Confirm Password</label>
                         <input type="password" name="ConfirmPassword" class="form-control-cafe"
-                               placeholder="Re-enter password" required minlength="8" />
+                               placeholder="Re-enter password" required minlength="8" maxlength="64"
+                               autocomplete="new-password" />
+                        <p class="pw-match" data-pw-match aria-live="polite"></p>
                     </div>
 
                     @if (!string.IsNullOrEmpty(Model.AddError))
@@ -337,7 +699,13 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form method="post" asp-page-handler="Edit">
+            <form method="post" asp-page-handler="Edit" data-pw-form data-pw-optional
+                  data-confirm
+                  data-confirm-title="Save changes"
+                  data-confirm-message="Save the changes to {name}'s account?"
+                  data-confirm-ok="Save changes"
+                  data-confirm-tone="primary"
+                  data-confirm-icon="ti-device-floppy">
                 @Html.AntiForgeryToken()
                 <div class="modal-body">
 
@@ -375,9 +743,38 @@
                     </div>
 
                     <div class="form-group">
+                        <label class="form-label">Contact Number</label>
+                        <input type="tel" name="ContactNumber" id="editContact" class="form-control-cafe"
+                               data-contact-input
+                               placeholder="e.g. 09171234567" required
+                               maxlength="11" minlength="11" inputmode="numeric"
+                               pattern="[0-9]{11}"
+                               title="Contact number must be exactly 11 digits (numbers only)."
+                               autocomplete="off" />
+                        <p class="pw-match" data-contact-msg aria-live="polite"></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Address</label>
+                        <textarea name="Address" id="editAddress" class="form-control-cafe" rows="2"
+                                  placeholder="House no., street, barangay, city" required
+                                  minlength="5" maxlength="250"></textarea>
+                    </div>
+
+                    <div class="form-group">
                         <label class="form-label">New Password <small style="color:var(--text-mute)">(leave blank to keep current)</small></label>
                         <input type="password" name="Password" class="form-control-cafe"
-                               placeholder="Minimum 8 characters" minlength="8" />
+                               placeholder="Enter a new password" maxlength="64"
+                               autocomplete="new-password" />
+                        <ul class="pw-rules" data-pw-rules aria-label="Password requirements"></ul>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Confirm New Password</label>
+                        <input type="password" name="ConfirmPassword" class="form-control-cafe"
+                               placeholder="Re-enter new password" maxlength="64"
+                               autocomplete="new-password" />
+                        <p class="pw-match" data-pw-match aria-live="polite"></p>
                     </div>
 
                 </div>
@@ -427,6 +824,14 @@
                         <td id="viewStatus" style="padding:8px 0"></td>
                     </tr>
                     <tr>
+                        <td style="padding:8px 0;color:var(--text-mute)">Contact Number</td>
+                        <td id="viewContact" style="padding:8px 0"></td>
+                    </tr>
+                    <tr>
+                        <td style="padding:8px 0;color:var(--text-mute);vertical-align:top">Address</td>
+                        <td id="viewAddress" class="view-wrap" style="padding:8px 0"></td>
+                    </tr>
+                    <tr>
                         <td style="padding:8px 0;color:var(--text-mute)">Date Created</td>
                         <td id="viewCreated" style="padding:8px 0"></td>
                     </tr>
@@ -442,35 +847,55 @@
 </div>
 
 
-<!-- ── Delete Confirm Modal ──────────────────────────────────── -->
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+<!-- ── Archive Confirm Modal ─────────────────────────────────── -->
+<div class="modal fade" id="archiveConfirmModal" tabindex="-1" aria-labelledby="archiveConfirmModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">
 
             <div class="modal-header">
-                <h5 class="modal-title" id="deleteConfirmModalLabel" style="color:var(--danger)">
-                    <i class="ti ti-alert-triangle" aria-hidden="true" style="margin-right:6px"></i>
-                    Delete Account
+                <h5 class="modal-title" id="archiveConfirmModalLabel">
+                    <i class="ti ti-archive" aria-hidden="true" style="margin-right:6px;color:var(--brown)"></i>
+                    Archive Account
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body" style="font-size:14px;">
-                Are you sure you want to delete <strong id="deleteFullName"></strong>?
-                This action cannot be undone.
+                Archive <strong id="archiveFullName"></strong>?
+                They won't be able to sign in, but the record is kept and you can restore it anytime from the Archived tab.
             </div>
 
-            <form method="post" asp-page-handler="Delete">
+            <form method="post" asp-page-handler="Archive">
                 @Html.AntiForgeryToken()
-                <input type="hidden" name="UserId" id="deleteUserId" />
+                <input type="hidden" name="UserId" id="archiveUserId" />
                 <div class="modal-footer">
                     <button type="button" class="btn-ghost-cafe" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn-primary-cafe" style="background:var(--danger)">
-                        <i class="ti ti-trash" aria-hidden="true"></i> Delete
+                    <button type="submit" class="btn-primary-cafe">
+                        <i class="ti ti-archive" aria-hidden="true"></i> Archive
                     </button>
                 </div>
             </form>
 
+        </div>
+    </div>
+</div>
+
+
+<!-- ── Reusable Confirmation Modal ───────────────────────────── -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="confirm-body">
+                <div class="confirm-icon" id="confirmIcon">
+                    <i class="ti ti-help-circle" id="confirmIconI" aria-hidden="true"></i>
+                </div>
+                <h5 class="confirm-title" id="confirmModalTitle">Are you sure?</h5>
+                <p class="confirm-message" id="confirmMessage"></p>
+            </div>
+            <div class="modal-footer confirm-footer">
+                <button type="button" class="btn-ghost-cafe" id="confirmCancel" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn-primary-cafe" id="confirmOk">Confirm</button>
+            </div>
         </div>
     </div>
 </div>
@@ -481,54 +906,271 @@
         // ── Live search + filter ────────────────────────────────
         document.getElementById('searchInput').addEventListener('input', filterTable);
         document.getElementById('roleFilter').addEventListener('change', filterTable);
-        document.getElementById('statusFilter').addEventListener('change', filterTable);
+        document.getElementById('statusFilter')?.addEventListener('change', filterTable);
 
         function filterTable() {
-            const search = document.getElementById('searchInput').value.toLowerCase();
+            const search = document.getElementById('searchInput').value.trim().toLowerCase();
             const role   = document.getElementById('roleFilter').value.toLowerCase();
-            const status = document.getElementById('statusFilter').value.toLowerCase();
-            const rows   = document.querySelectorAll('.data-table tbody tr');
+            const status = (document.getElementById('statusFilter')?.value || '').toLowerCase();
+            const rows   = document.querySelectorAll('.data-table tbody tr[data-row]');
+            let visible  = 0;
 
             rows.forEach(row => {
                 const name   = row.querySelector('.av-name')?.textContent.toLowerCase()  || '';
                 const email  = row.querySelector('.av-email')?.textContent.toLowerCase() || '';
-                const badge  = row.querySelector('.role-badge')?.textContent.toLowerCase() || '';
+                const badge  = row.querySelector('.role-badge')?.textContent.trim().toLowerCase() || '';
                 const dot    = row.querySelector('.status-dot')?.textContent.trim().toLowerCase() || '';
 
                 const matchSearch = !search || name.includes(search) || email.includes(search);
-                const matchRole   = !role   || badge.includes(role);
-                const matchStatus = !status || dot.includes(status);
+                const matchRole   = !role   || badge === role;
+                const matchStatus = !status || dot === status;
 
-                row.style.display = (matchSearch && matchRole && matchStatus) ? '' : 'none';
+                const show = matchSearch && matchRole && matchStatus;
+                row.style.display = show ? '' : 'none';
+                if (show) visible++;
             });
+
+            // Show "No records found" inside the table when nothing matches
+            document.getElementById('noResultsRow').style.display = visible === 0 ? '' : 'none';
         }
+
+        // ── Contact number: exactly 11 digits, numbers only ─────
+        const CONTACT_LENGTH = 11;
+
+        function setupContactInput(input) {
+            const msg = input.closest('.form-group')?.querySelector('[data-contact-msg]');
+
+            function update() {
+                if (!msg) return;
+                const len = input.value.length;
+                if (len === 0) {
+                    msg.textContent = '';
+                    msg.className = 'pw-match';
+                } else if (len === CONTACT_LENGTH) {
+                    msg.textContent = '✓ ' + CONTACT_LENGTH + ' digits';
+                    msg.className = 'pw-match ok';
+                } else {
+                    msg.textContent = '✕ ' + len + '/' + CONTACT_LENGTH + ' digits (numbers only)';
+                    msg.className = 'pw-match bad';
+                }
+            }
+
+            // Block non-digit keys as they are typed
+            input.addEventListener('keypress', function (e) {
+                if (e.key.length === 1 && !/[0-9]/.test(e.key)) e.preventDefault();
+            });
+
+            // Clean typed / pasted / autofilled values: strip non-digits, cap at 11
+            input.addEventListener('input', function () {
+                input.value = input.value.replace(/\D/g, '').slice(0, CONTACT_LENGTH);
+                update();
+            });
+
+            input._contactUpdate = update;
+            update();
+        }
+
+        document.querySelectorAll('[data-contact-input]').forEach(setupContactInput);
+
+        // ── Password rules (Add + Edit) ─────────────────────────
+        // Same rules as the server (PasswordPolicy.cs)
+        const PW_RULES = [
+            { test: p => p.length >= 8,             label: 'At least 8 characters' },
+            { test: p => /[A-Z]/.test(p),           label: 'An uppercase letter (A-Z)' },
+            { test: p => /[a-z]/.test(p),           label: 'A lowercase letter (a-z)' },
+            { test: p => /[0-9]/.test(p),           label: 'A number (0-9)' },
+            { test: p => /[^A-Za-z0-9\s]/.test(p),  label: 'A special character (! @@ # $ % ...)' }
+        ];
+
+        function setupPasswordForm(form) {
+            const optional = form.hasAttribute('data-pw-optional');   // Edit: blank = keep current password
+            const pass     = form.querySelector('[name="Password"]');
+            const confirm  = form.querySelector('[name="ConfirmPassword"]');
+            const list     = form.querySelector('[data-pw-rules]');
+            const match    = form.querySelector('[data-pw-match]');
+            const submit   = form.querySelector('button[type="submit"]');
+
+            list.innerHTML = '';
+            const items = PW_RULES.map(rule => {
+                const li = document.createElement('li');
+                const mark = document.createElement('span');
+                mark.className = 'pw-mark';
+                mark.setAttribute('aria-hidden', 'true');
+                const text = document.createElement('span');
+                text.textContent = rule.label;
+                li.append(mark, text);
+                list.appendChild(li);
+                return li;
+            });
+
+            function check() {
+                const p = pass.value;
+                const c = confirm.value;
+                let allMet = true;
+
+                PW_RULES.forEach((rule, i) => {
+                    const met = rule.test(p);
+                    if (!met) allMet = false;
+                    items[i].classList.toggle('is-met',   p.length > 0 && met);
+                    items[i].classList.toggle('is-unmet', p.length > 0 && !met);
+                });
+
+                const same = p === c;
+                if (!c) {
+                    match.textContent = '';
+                    match.className = 'pw-match';
+                } else if (same) {
+                    match.textContent = '✓ Passwords match';
+                    match.className = 'pw-match ok';
+                } else {
+                    match.textContent = '✕ Passwords do not match';
+                    match.className = 'pw-match bad';
+                }
+
+                const untouched = optional && p === '' && c === '';
+                submit.disabled = !untouched && !(allMet && same && p.length > 0);
+            }
+
+            pass.addEventListener('input', check);
+            confirm.addEventListener('input', check);
+            form._pwCheck = check;
+            check();
+        }
+
+        document.querySelectorAll('[data-pw-form]').forEach(setupPasswordForm);
+
+        // Add modal: start clean every time it closes
+        // (skipped when it was only hidden to show the confirmation dialog)
+        const addModalEl = document.getElementById('addAccountModal');
+        addModalEl.addEventListener('hidden.bs.modal', function () {
+            if (addModalEl.dataset.keep === '1') {
+                delete addModalEl.dataset.keep;
+                return;
+            }
+            const form = addModalEl.querySelector('form');
+            form.reset();
+            form._pwCheck();
+            form.querySelector('[data-contact-input]')?._contactUpdate();
+        });
 
         // ── Edit modal – pre-fill fields ────────────────────────
         document.getElementById('editAccountModal').addEventListener('show.bs.modal', function (e) {
             const btn = e.relatedTarget;
+            if (!btn) return;   // re-opened after the confirmation dialog: keep what was typed
+
+            const form = e.currentTarget.querySelector('form');
+
             document.getElementById('editUserId').value   = btn.dataset.userid;
             document.getElementById('editFullName').value = btn.dataset.fullname;
             document.getElementById('editUsername').value = btn.dataset.username;
             document.getElementById('editRoleId').value   = btn.dataset.roleid;
             document.getElementById('editIsActive').value = btn.dataset.isactive;
+
+            // Older records may contain spaces/dashes: keep digits only so the 11-digit rule can be checked.
+            // (Not cut to 11 here, so a bad old number is shown as-is and the admin has to correct it.)
+            const editContact = document.getElementById('editContact');
+            editContact.value = (btn.dataset.contact || '').replace(/\D/g, '');
+            editContact._contactUpdate();
+
+            document.getElementById('editAddress').value  = btn.dataset.address || '';
+
+            form.querySelector('[name="Password"]').value = '';
+            form.querySelector('[name="ConfirmPassword"]').value = '';
+            form._pwCheck();
         });
 
         // ── View modal – populate details ───────────────────────
         document.getElementById('viewAccountModal').addEventListener('show.bs.modal', function (e) {
             const btn = e.relatedTarget;
+            if (!btn) return;
+
             document.getElementById('viewFullName').textContent = btn.dataset.fullname;
             document.getElementById('viewUsername').textContent = btn.dataset.username;
             document.getElementById('viewRole').textContent     = btn.dataset.role;
             document.getElementById('viewStatus').textContent   = btn.dataset.status;
+            document.getElementById('viewContact').textContent  = btn.dataset.contact || '—';
+            document.getElementById('viewAddress').textContent  = btn.dataset.address || '—';
             document.getElementById('viewCreated').textContent  = btn.dataset.created;
         });
 
-        // ── Delete modal – populate name & id ───────────────────
-        document.getElementById('deleteConfirmModal').addEventListener('show.bs.modal', function (e) {
+        // ── Archive modal – populate name & id ──────────────────
+        document.getElementById('archiveConfirmModal').addEventListener('show.bs.modal', function (e) {
             const btn = e.relatedTarget;
-            document.getElementById('deleteUserId').value        = btn.dataset.userid;
-            document.getElementById('deleteFullName').textContent = btn.dataset.fullname;
+            if (!btn) return;
+
+            document.getElementById('archiveUserId').value         = btn.dataset.userid;
+            document.getElementById('archiveFullName').textContent = btn.dataset.fullname;
         });
+
+        // ── Confirmation dialog (replaces the browser's confirm()) ──
+        // Any <form data-confirm ...> asks first. Attributes:
+        //   data-confirm-title, data-confirm-message ({name} = the form's FullName field),
+        //   data-confirm-ok, data-confirm-tone (primary | success | danger), data-confirm-icon (ti-...)
+        (function () {
+            const el       = document.getElementById('confirmModal');
+            const modal    = new bootstrap.Modal(el);
+            const iconWrap = document.getElementById('confirmIcon');
+            const iconI    = document.getElementById('confirmIconI');
+            const titleEl  = document.getElementById('confirmModalTitle');
+            const msgEl    = document.getElementById('confirmMessage');
+            const okBtn    = document.getElementById('confirmOk');
+
+            let pendingForm = null;
+            let parentEl    = null;     // the Add/Edit modal the form lives in, if any
+            let confirmed   = false;
+
+            document.addEventListener('submit', function (e) {
+                const form = e.target;
+                if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirm')) return;
+                e.preventDefault();
+                openConfirm(form);
+            });
+
+            function openConfirm(form) {
+                pendingForm = form;
+                confirmed = false;
+
+                const tone = form.dataset.confirmTone || 'primary';
+                const name = (form.querySelector('[name="FullName"]')?.value || 'this staff member').trim();
+
+                titleEl.textContent = form.dataset.confirmTitle || 'Are you sure?';
+                msgEl.textContent   = (form.dataset.confirmMessage || '').replace('{name}', name);
+                iconI.className     = 'ti ' + (form.dataset.confirmIcon || 'ti-help-circle');
+                iconWrap.className  = 'confirm-icon tone-' + tone;
+                okBtn.className     = 'btn-primary-cafe tone-' + tone;
+                okBtn.textContent   = form.dataset.confirmOk || 'Confirm';
+                okBtn.disabled      = false;
+
+                // If the form sits inside another modal, hide that one first (Bootstrap can't stack modals cleanly)
+                const parent = form.closest('.modal');
+                if (parent && parent.classList.contains('show')) {
+                    parentEl = parent;
+                    if (parent.id === 'addAccountModal') parent.dataset.keep = '1';   // don't wipe the typed values
+                    parent.addEventListener('hidden.bs.modal', () => modal.show(), { once: true });
+                    bootstrap.Modal.getInstance(parent).hide();
+                } else {
+                    parentEl = null;
+                    modal.show();
+                }
+            }
+
+            okBtn.addEventListener('click', function () {
+                if (!pendingForm) return;
+                confirmed = true;
+                okBtn.disabled = true;
+                okBtn.textContent = 'Please wait…';
+                pendingForm.submit();   // submit() does not fire the submit event again
+            });
+
+            // Cancelled / closed: go back to the form the person was filling in
+            el.addEventListener('hidden.bs.modal', function () {
+                if (!confirmed && parentEl) {
+                    bootstrap.Modal.getOrCreateInstance(parentEl).show();
+                }
+                pendingForm = null;
+                parentEl = null;
+            });
+        })();
 
         // ── Re-open Add modal on validation error ───────────────
         @if (!string.IsNullOrEmpty(Model.AddError))
@@ -539,9 +1181,9 @@
                 </text>
         }
 
-                // ── Export helpers ──────────────────────────────────────────
+        // ── Export helpers ──────────────────────────────────────
         function getVisibleRows() {
-            return [...document.querySelectorAll('.data-table tbody tr')]
+            return [...document.querySelectorAll('.data-table tbody tr[data-row]')]
                 .filter(row => row.style.display !== 'none')
                 .map(row => ({
                     FullName:    row.querySelector('.av-name')?.textContent.trim()        ?? '',
@@ -567,7 +1209,7 @@
             const rows = getVisibleRows();
             if (!rows.length) { alert('No accounts to export.'); return; }
 
-            const headers = ['Full Name', 'Username', 'Role', 'Status', 'Date Created'];
+            const headers = ['Full Name', 'Username', 'Role', 'Status', 'Date'];
             const escape  = v => `"${String(v).replace(/"/g, '""')}"`;
             const csv     = [
                 headers.map(escape).join(','),

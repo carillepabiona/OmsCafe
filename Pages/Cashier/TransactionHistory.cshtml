@@ -2,7 +2,7 @@
 @model OmsCafe.Pages.Cashier.TransactionHistoryModel
 @{
     ViewData["Title"] = "Transaction History";
-    ViewData["Subtitle"] = "Complete record of all completed orders";
+    ViewData["Subtitle"] = "Complete record of all orders";
 }
 
 <link rel="stylesheet" href="~/css/payments.css" />
@@ -19,7 +19,7 @@
             </div>
             <div class="stat-badge">
                 <span class="stat-label">Total Revenue</span>
-                <span class="stat-value">₱@Model.TotalRevenue.ToString("0.00")</span>
+                <span class="stat-value">₱@Model.TotalRevenue.ToString("N2")</span>
             </div>
             <div class="stat-badge">
                 <span class="stat-label">Dine-In</span>
@@ -37,7 +37,7 @@
         <div class="search-filters-section">
             <div class="search-box">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
                 </svg>
                 <input type="text" name="searchQuery" value="@Model.SearchQuery"
                        placeholder="Search by Order #, Table, Customer, or Item…"
@@ -46,10 +46,10 @@
 
             <div class="filter-buttons">
                 @foreach (var (val, label) in new[] {
-                    ("today","Today"),("week","This Week"),
-                    ("month","This Month"),("all","All Time") })
+                    ("today", "Today"), ("week", "This Week"),
+                    ("month", "This Month"), ("all", "All Time") })
                 {
-                    <button type="submit" name="dateFilter" value="@val"
+                    <button type="button" onclick="submitWithFilter('@val')"
                             class="filter-btn @(Model.DateFilter == val ? "active" : "")">
                         @label
                     </button>
@@ -71,8 +71,25 @@
                     <option value="dine-in" selected="@(Model.TypeFilter == "dine-in" ? "selected" : null)">🍽 Dine-In</option>
                     <option value="take-out" selected="@(Model.TypeFilter == "take-out" ? "selected" : null)">🛍️ Take-Out</option>
                 </select>
+
+                <!-- Status filter -->
+                <select name="statusFilter" class="filter-select" onchange="this.form.submit()">
+                    @foreach (var (val, label) in new[] {
+                        ("all", "All Statuses"),
+                        ("awaiting_payment", "Awaiting Payment"),
+                        ("pending", "Pending"),
+                        ("preparing", "Preparing"),
+                        ("ready", "Ready"),
+                        ("served", "Served"),
+                        ("completed", "Completed"),
+                        ("cancelled", "Cancelled") })
+                    {
+                        <option value="@val" selected="@(Model.StatusFilter == val ? "selected" : null)">@label</option>
+                    }
+                </select>
             </div>
 
+            <!-- The ONLY dateFilter field. Buttons above set it via JS. -->
             <input type="hidden" name="dateFilter" id="hidden-date-filter" value="@Model.DateFilter" />
         </div>
 
@@ -81,7 +98,7 @@
             <div class="range-label">
                 Showing: <strong>@Model.RangeLabel</strong>
                 — @Model.TotalOrders order@(Model.TotalOrders != 1 ? "s" : ""),
-                  ₱@Model.TotalRevenue.ToString("0.00") revenue
+                  ₱@Model.TotalRevenue.ToString("N2") revenue
             </div>
         }
     </form>
@@ -115,38 +132,53 @@
                 <tbody>
                     @foreach (var t in Model.Transactions)
                     {
-                        <tr onclick="toggleDetails(@t.Id)" style="cursor:pointer;">
+                        var isCancelled = string.Equals(t.Status, "cancelled", StringComparison.OrdinalIgnoreCase);
+
+                        <tr onclick="toggleDetails(@t.Id)"
+                            style="cursor:pointer;@(isCancelled ? "opacity:0.55;" : "")">
                             <td><strong>#@t.OrderNumber</strong></td>
                             <td>@t.CustomerName</td>
                             <td>@(string.IsNullOrEmpty(t.TableNumber) ? "—" : t.TableNumber)</td>
                             <td>
                                 <span class="order-type-badge @t.Type">
-                                    @Html.Raw(t.Type == "dine-in" ? "<i class='fa-solid fa-utensils'></i> Dine-In" : "<i class='fa-solid fa-bag-shopping'></i> Take-Out")
+                                    @Html.Raw(t.Type == "dine-in"
+                                        ? "<i class='fa-solid fa-utensils'></i> Dine-In"
+                                        : "<i class='fa-solid fa-bag-shopping'></i> Take-Out")
                                 </span>
                             </td>
                             <td>@t.Items.Sum(i => i.Quantity) items</td>
-                            <td class="tx-amount">₱@t.Total.ToString("0.00")</td>
+                            <td class="tx-amount">₱@t.Total.ToString("N2")</td>
                             <td class="tx-muted">@t.ElapsedTime</td>
                             <td class="tx-muted">@t.CreatedAt.ToString("MMM dd, hh:mm tt")</td>
                             <td>
                                 <span class="status-pill @t.Status">@t.Status</span>
+                                @if (t.IsPaid)
+                                {
+                                    <span class="tx-muted"
+                                          title="Paid @(t.PaidAt?.ToString("MMM dd, yyyy hh:mm tt"))"
+                                          style="margin-left:4px;">✔ Paid</span>
+                                }
                             </td>
                             <td>
                                 <span class="expand-icon" id="icon-@t.Id">▼</span>
                             </td>
                         </tr>
 
-                        <!-- Expandable items row -->
+                        <!-- Expandable details row -->
                         <tr id="details-@t.Id" class="tx-details-row" style="display:none;">
                             <td colspan="10">
                                 <div class="tx-details-inner">
                                     <div class="tx-items-grid">
                                         @foreach (var item in t.Items)
                                         {
-                                            <div class="tx-item-row" style="display:flex;align-items:center;flex-wrap:nowrap;gap:10px;white-space:nowrap;overflow-x:auto;">
-                                                @if (!string.IsNullOrEmpty(item.ImageBase64))
+                                            <div class="tx-item-row"
+                                                 style="display:flex;align-items:center;flex-wrap:nowrap;gap:10px;white-space:nowrap;overflow-x:auto;">
+                                                @if (item.HasImage)
                                                 {
-                                                    <img src="data:@item.ImageMimeType;base64,@item.ImageBase64" alt="@item.Name"
+                                                    <!-- data-src is only turned into src when the row is opened -->
+                                                    <img data-src="@Url.Page("/Cashier/TransactionHistory", "Image", new { id = item.MenuItemId })"
+                                                         alt="@item.Name"
+                                                         loading="lazy" decoding="async"
                                                          style="width:28px;height:28px;object-fit:contain;border-radius:6px;background:#f5f0ea;padding:1px;flex-shrink:0;" />
                                                 }
                                                 else
@@ -165,13 +197,16 @@
                                                 }
                                                 @if (!string.IsNullOrEmpty(item.SpecialInstructions))
                                                 {
-                                                    <span class="tx-item-meta" style="flex-shrink:0;color:var(--text-mute,#888);"><i class="fa-solid fa-note-sticky"></i> @item.SpecialInstructions</span>
+                                                    <span class="tx-item-meta" style="flex-shrink:0;color:var(--text-mute,#888);">
+                                                        <i class="fa-solid fa-note-sticky"></i> @item.SpecialInstructions
+                                                    </span>
                                                 }
 
-                                                <span class="tx-item-price" style="flex-shrink:0;margin-left:auto;font-weight:700;">₱@item.Price.ToString("0.00")</span>
+                                                <span class="tx-item-price" style="flex-shrink:0;margin-left:auto;font-weight:700;">₱@item.Price.ToString("N2")</span>
                                             </div>
                                         }
                                     </div>
+
                                     @if (!string.IsNullOrEmpty(t.PaymentMethod))
                                     {
                                         <div class="tx-meta-row">
@@ -179,11 +214,55 @@
                                             <strong>@t.PaymentMethod</strong>
                                         </div>
                                     }
+                                    @if (t.IsPaid && t.PaidAt.HasValue)
+                                    {
+                                        <div class="tx-meta-row">
+                                            <span>Paid at:</span>
+                                            <strong>@t.PaidAt.Value.ToString("MMM dd, yyyy hh:mm tt")</strong>
+                                        </div>
+                                    }
                                     @if (t.ServedAt.HasValue)
                                     {
                                         <div class="tx-meta-row">
                                             <span>Served at:</span>
                                             <strong>@t.ServedAt.Value.ToString("MMM dd, yyyy hh:mm tt")</strong>
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(t.DiscountType))
+                                    {
+                                        <div class="tx-meta-row">
+                                            <span>Discount:</span>
+                                            <strong>
+                                                @t.DiscountType (−₱@t.DiscountAmount.ToString("N2"))
+                                                @if (!string.IsNullOrEmpty(t.DiscountIdName))
+                                                {
+                                                    <text> · @t.DiscountIdName</text>
+                                                }
+                                                @if (!string.IsNullOrEmpty(t.DiscountIdNumber))
+                                                {
+                                                    <text> · ID @t.DiscountIdNumber</text>
+                                                }
+                                            </strong>
+                                        </div>
+                                        @if (t.DiscountVerifiedAt.HasValue)
+                                        {
+                                            <div class="tx-meta-row">
+                                                <span>Verified:</span>
+                                                <strong>
+                                                    @t.DiscountVerifiedAt.Value.ToString("MMM dd, yyyy hh:mm tt")
+                                                    @if (!string.IsNullOrEmpty(t.DiscountVerifiedBy))
+                                                    {
+                                                        <text> by @t.DiscountVerifiedBy</text>
+                                                    }
+                                                </strong>
+                                            </div>
+                                        }
+                                    }
+                                    @if (!string.IsNullOrEmpty(t.SpecialInstructions))
+                                    {
+                                        <div class="tx-meta-row">
+                                            <span>Order notes:</span>
+                                            <strong>@t.SpecialInstructions</strong>
                                         </div>
                                     }
                                 </div>
@@ -197,23 +276,31 @@
 </div>
 
 <script>
-let searchTimeout;
-function debouncedSearch(input) {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => input.form.submit(), 400);
-}
+    let searchTimeout;
+    function debouncedSearch(input) {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => input.form.submit(), 400);
+    }
 
-function submitWithFilter(filterValue) {
-    document.getElementById('hidden-date-filter').value = filterValue;
-    document.getElementById('filter-form').submit();
-}
+    function submitWithFilter(filterValue) {
+        document.getElementById('hidden-date-filter').value = filterValue;
+        document.getElementById('filter-form').submit();
+    }
 
-function toggleDetails(id) {
-    const row  = document.getElementById(`details-${id}`);
-    const icon = document.getElementById(`icon-${id}`);
-    const open = row.style.display === 'none';
-    row.style.display  = open ? '' : 'none';
-    icon.textContent   = open ? '▲' : '▼';
-    icon.style.color   = open ? 'var(--accent)' : '';
-}
+    function toggleDetails(id) {
+        const row  = document.getElementById(`details-${id}`);
+        const icon = document.getElementById(`icon-${id}`);
+        const open = row.style.display === 'none';
+        row.style.display = open ? '' : 'none';
+        icon.textContent  = open ? '▲' : '▼';
+        icon.style.color  = open ? 'var(--accent)' : '';
+
+        // Load the item images only the first time a row is opened.
+        if (open) {
+            row.querySelectorAll('img[data-src]').forEach(img => {
+                img.src = img.dataset.src;
+                img.removeAttribute('data-src');
+            });
+        }
+    }
 </script>

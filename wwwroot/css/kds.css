@@ -1,27 +1,58 @@
 ﻿/* ── KDS — Kitchen Display System ── */
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
 
+/* ───────────── THEMES ───────────── */
 :root {
+    color-scheme: dark;
     --bg: #0a0a0a;
     --surface: #111111;
     --surface2: #1a1a1a;
     --border: #2a2a2a;
     --border2: #333333;
     --text: #f0f0f0;
-    --text-muted: #666;
-    --text-dim: #444;
+    --text-muted: #8a8a8a;
+    --text-dim: #5a5a5a;
     --pending: #f59e0b;
     --pending-bg: rgba(245,158,11,0.08);
-    --pending-border: rgba(245,158,11,0.25);
     --preparing: #3b82f6;
-    --preparing-bg: rgba(59,130,246,0.08);
-    --preparing-border: rgba(59,130,246,0.25);
+    --preparing-hover: #2563eb;
     --ready: #22c55e;
+    --ready-hover: #16a34a;
     --ready-bg: rgba(34,197,94,0.08);
-    --ready-border: rgba(34,197,94,0.30);
+    --on-ready: #000;
     --red: #ef4444;
     --orange: #f97316;
+    --chip: rgba(255,255,255,0.05);
+    --dine-bg: rgba(59,130,246,0.15);
+    --take-bg: rgba(249,115,22,0.15);
+    --card-shadow: none;
+    --topbar-h: 56px;
 }
+
+    :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: #f4f1ec;
+        --surface: #ffffff;
+        --surface2: #f3f0ea;
+        --border: #e2ddd4;
+        --border2: #d3cdc1;
+        --text: #1c1917;
+        --text-muted: #6b665e;
+        --text-dim: #a39e94;
+        --pending: #d97706;
+        --pending-bg: rgba(217,119,6,0.10);
+        --preparing: #2563eb;
+        --preparing-hover: #1d4ed8;
+        --ready: #16a34a;
+        --ready-hover: #15803d;
+        --ready-bg: rgba(22,163,74,0.10);
+        --on-ready: #fff;
+        --red: #dc2626;
+        --orange: #ea580c;
+        --chip: rgba(0,0,0,0.04);
+        --dine-bg: rgba(37,99,235,0.10);
+        --take-bg: rgba(234,88,12,0.10);
+        --card-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
 
 *, *::before, *::after {
     box-sizing: border-box;
@@ -29,25 +60,34 @@
     padding: 0;
 }
 
+/* ───────────── PAGE FRAME ─────────────
+   The page never scrolls. It is split into three fixed parts:
+   top bar / columns / recall footer. Only the order lists scroll. */
 html, body {
     height: 100%;
+    overflow: hidden;
     background: var(--bg);
     color: var(--text);
     font-family: 'DM Sans', sans-serif;
-    overflow-x: hidden;
 }
 
-/* ── TOP BAR ── */
+body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh; /* correct height on tablets/phones with browser bars */
+}
+
+/* ── TOP BAR (fixed) ── */
 .kds-topbar {
+    flex: 0 0 var(--topbar-h);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     padding: 0 28px;
-    height: 56px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
     z-index: 100;
 }
 
@@ -59,6 +99,7 @@ html, body {
     font-size: 1.5rem;
     letter-spacing: 2px;
     color: var(--text);
+    white-space: nowrap;
 }
 
 .kds-brand-dot {
@@ -71,7 +112,7 @@ html, body {
 }
 
 @keyframes pulse-dot {
-    0%,100% {
+    0%, 100% {
         opacity: 1;
         transform: scale(1);
     }
@@ -82,11 +123,19 @@ html, body {
     }
 }
 
+.kds-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .kds-clock {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
     color: var(--text-muted);
     letter-spacing: 1px;
+    min-width: 72px;
+    text-align: right;
 }
 
 .kds-stats {
@@ -125,18 +174,22 @@ html, body {
     color: var(--ready);
 }
 
-/* ── COLUMNS ── */
+/* ── COLUMNS ──
+   flex:1 + min-height:0 makes this fill exactly the space between
+   the top bar and the footer. */
 .kds-body {
+    flex: 1 1 auto;
+    min-height: 0;
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 0;
-    height: calc(100vh - 56px);
     overflow: hidden;
 }
 
 .kds-col {
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    min-width: 0;
     border-right: 1px solid var(--border);
     overflow: hidden;
 }
@@ -145,14 +198,15 @@ html, body {
         border-right: none;
     }
 
+/* column header (fixed) */
 .kds-col-header {
+    flex: 0 0 auto;
     padding: 14px 20px;
     border-bottom: 1px solid var(--border);
     background: var(--surface);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-shrink: 0;
 }
 
 .col-title {
@@ -195,17 +249,21 @@ html, body {
     color: var(--text-muted);
 }
 
+/* the ONLY scrolling area */
 .kds-col-body {
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
-    padding: 14px;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 14px 24px;
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
     .kds-col-body::-webkit-scrollbar {
-        width: 4px;
+        width: 8px;
     }
 
     .kds-col-body::-webkit-scrollbar-track {
@@ -214,18 +272,28 @@ html, body {
 
     .kds-col-body::-webkit-scrollbar-thumb {
         background: var(--border2);
-        border-radius: 4px;
+        border-radius: 8px;
     }
+
+        .kds-col-body::-webkit-scrollbar-thumb:hover {
+            background: var(--text-dim);
+        }
 
 /* ── ORDER CARD ── */
 .kds-card {
+    flex: 0 0 auto; /* never shrink: this is what keeps the buttons visible */
     background: var(--surface);
     border-radius: 10px;
     border: 1px solid var(--border);
+    box-shadow: var(--card-shadow);
     overflow: hidden;
     transition: transform 0.15s ease, border-color 0.2s;
-    animation: card-in 0.3s ease both;
 }
+
+    /* animate only brand-new cards, not every 5s refresh */
+    .kds-card.is-new {
+        animation: card-in 0.3s ease both;
+    }
 
 @keyframes card-in {
     from {
@@ -243,7 +311,6 @@ html, body {
     transform: translateY(-1px);
 }
 
-/* status accent line */
 .kds-card.status-pending {
     border-top: 2px solid var(--pending);
 }
@@ -256,7 +323,6 @@ html, body {
     border-top: 2px solid var(--ready);
 }
 
-/* urgent */
 .kds-card.urgent {
     border-color: var(--red);
     border-top-color: var(--red);
@@ -264,7 +330,7 @@ html, body {
 }
 
 @keyframes urgent-pulse {
-    0%,100% {
+    0%, 100% {
         box-shadow: 0 0 0 0 rgba(239,68,68,0);
     }
 
@@ -277,6 +343,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     padding: 10px 14px;
     background: var(--surface2);
     border-bottom: 1px solid var(--border);
@@ -295,7 +362,7 @@ html, body {
     letter-spacing: 1px;
     padding: 2px 10px;
     border-radius: 5px;
-    background: rgba(255,255,255,0.05);
+    background: var(--chip);
     border: 1px solid var(--border2);
     color: var(--text);
 }
@@ -310,12 +377,12 @@ html, body {
 }
 
     .kds-type-badge.dine-in {
-        background: rgba(59,130,246,0.15);
+        background: var(--dine-bg);
         color: var(--preparing);
     }
 
     .kds-type-badge.take-out {
-        background: rgba(249,115,22,0.15);
+        background: var(--take-bg);
         color: var(--orange);
     }
 
@@ -349,7 +416,6 @@ html, body {
     }
 }
 
-/* customer name */
 .kds-customer {
     padding: 6px 14px;
     font-size: 0.75rem;
@@ -382,6 +448,7 @@ html, body {
 
 .kds-item-info {
     flex: 1;
+    min-width: 0;
 }
 
 .kds-item-name {
@@ -416,6 +483,7 @@ html, body {
     margin-top: 1px;
     transition: all 0.15s;
     appearance: none;
+    -webkit-appearance: none;
     position: relative;
 }
 
@@ -431,7 +499,7 @@ html, body {
             top: 1px;
             width: 6px;
             height: 10px;
-            border: 2px solid #000;
+            border: 2px solid var(--on-ready);
             border-top: none;
             border-left: none;
             transform: rotate(45deg);
@@ -456,10 +524,11 @@ html, body {
 
 .kds-btn {
     flex: 1;
+    min-height: 40px; /* comfortable touch target */
     padding: 8px 0;
     border: none;
     border-radius: 7px;
-    font-size: 0.78rem;
+    font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
@@ -477,17 +546,28 @@ html, body {
 }
 
     .kds-btn-start:hover {
-        background: #2563eb;
+        background: var(--preparing-hover);
     }
 
 .kds-btn-ready {
     background: var(--ready);
-    color: #000;
+    color: var(--on-ready);
     font-weight: 700;
 }
 
     .kds-btn-ready:hover {
-        background: #16a34a;
+        background: var(--ready-hover);
+        color: #fff;
+    }
+
+.kds-btn-done {
+    background: var(--ready);
+    color: var(--on-ready);
+    font-weight: 700;
+}
+
+    .kds-btn-done:hover {
+        background: var(--ready-hover);
         color: #fff;
     }
 
@@ -496,7 +576,7 @@ html, body {
     color: var(--text-muted);
     border: 1px solid var(--border2);
     flex: 0 0 auto;
-    padding: 8px 12px;
+    padding: 8px 14px;
     font-size: 1rem;
 }
 
@@ -505,18 +585,17 @@ html, body {
         color: var(--text);
     }
 
-/* ready glow */
 .kds-card.status-ready .kds-card-head {
     background: var(--ready-bg);
 }
 
-/* empty col */
+/* empty column */
 .kds-empty {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
     gap: 10px;
     color: var(--text-dim);
     font-size: 0.8rem;
@@ -524,10 +603,10 @@ html, body {
 
 .kds-empty-icon {
     font-size: 2.5rem;
-    opacity: 0.3;
+    opacity: 0.4;
 }
 
-/* ── SOUND TOGGLE ── */
+/* ── SOUND / THEME BUTTONS ── */
 .sound-btn {
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -536,6 +615,8 @@ html, body {
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.85rem;
+    font-family: inherit;
+    white-space: nowrap;
     transition: all 0.15s;
 }
 
@@ -544,12 +625,10 @@ html, body {
         color: var(--text);
     }
 
-/* ── RECALL BAR ── */
+/* ── RECALL BAR (fixed footer, in normal flow so it never covers the columns) ── */
 .recall-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    flex: 0 0 auto;
+    min-height: 48px;
     background: var(--surface);
     border-top: 1px solid var(--border);
     padding: 8px 20px;
@@ -562,13 +641,42 @@ html, body {
 }
 
 .recall-label {
+    flex: 0 0 auto;
     font-weight: 600;
     color: var(--text-dim);
     text-transform: uppercase;
     letter-spacing: 1px;
 }
 
+.recall-hint {
+    flex: 0 0 auto;
+    color: var(--text-dim);
+    font-size: 0.72rem;
+}
+
+    .recall-hint[hidden] {
+        display: none;
+    }
+
+.recall-list {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    min-width: 0;
+    overflow-x: auto; /* scrolls sideways instead of growing the footer */
+}
+
+    .recall-list::-webkit-scrollbar {
+        height: 4px;
+    }
+
+    .recall-list::-webkit-scrollbar-thumb {
+        background: var(--border2);
+        border-radius: 4px;
+    }
+
 .recall-item {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -589,4 +697,27 @@ html, body {
     font-family: 'JetBrains Mono', monospace;
     font-weight: 700;
     font-size: 0.8rem;
+}
+
+/* ── SMALLER SCREENS ── */
+@media (max-width: 900px) {
+    .kds-topbar {
+        padding: 0 12px;
+    }
+
+    .kds-brand {
+        font-size: 1.2rem;
+    }
+
+    .kds-stats {
+        display: none;
+    }
+    /* counts are already in the column headers */
+    .kds-col-header {
+        padding: 12px 12px;
+    }
+
+    .kds-col-body {
+        padding: 10px 8px 20px;
+    }
 }

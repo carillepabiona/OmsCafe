@@ -22,8 +22,8 @@ namespace OmsCafe.Models
         public string? ImageBase64 { get; set; }
         public string? ImageMimeType { get; set; }
         public int DisplayOrder { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = PhTime.Now;
+        public DateTime UpdatedAt { get; set; } = PhTime.Now;
 
         public Category Category { get; set; } = null!;
         public ICollection<Customization> Customizations { get; set; } = new List<Customization>();

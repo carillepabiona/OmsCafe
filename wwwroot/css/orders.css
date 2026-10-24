@@ -1,8 +1,73 @@
 ﻿/* ============================================================
    orders.css — Order Management Page
    Theme: White & Orange Modern (WebPOSCafe)
-   Uses CSS vars from site.css
+   Uses CSS vars from site.css for the PAGE.
+   Modals (detail panel, payment dialog) use their own SOLID tokens
+   so they can never turn transparent if a site.css variable is
+   missing, translucent or changed by a theme.
    ============================================================ */
+
+/* ============================================================
+   MODAL TOKENS (solid colours, light by default)
+   Re-declaring the site variable names here means every existing
+   rule inside the modals keeps working, but with guaranteed values.
+   ============================================================ */
+.order-details-panel,
+.pay-dialog {
+    --white: #ffffff;
+    --warm-50: #fffaf3;
+    --warm-100: #fff3e0;
+    --warm-200: #fde3bf;
+    --border: #eee3d3;
+    --border-md: #e2d3bd;
+    --border-strong: #d4bf9f;
+    --text: #1f1a14;
+    --text-sub: #4d4337;
+    --text-mute: #7a6f61;
+    --espresso: #1f1a14;
+    --brown: #e67e00;
+    --brown-dark: #b35f00;
+    --info: #1c5c8a;
+    --info-bg: #e3f0fa;
+    --success: #2d7a4f;
+    --success-bg: #e4f5ec;
+    --warning: #b45309;
+    --warning-bg: #fff1dc;
+    --danger: #dc2626;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --shadow: 0 1px 3px rgba(26,26,26,0.08);
+    --modal-bg: #ffffff;
+    --modal-text: #1f1a14;
+    color: var(--modal-text);
+}
+
+/* Dark theme (matches the site's data-theme toggle) */
+:root[data-theme="dark"] .order-details-panel,
+:root[data-theme="dark"] .pay-dialog {
+    --white: #1d212a;
+    --warm-50: #232833;
+    --warm-100: #2a303c;
+    --warm-200: #363d4b;
+    --border: #353c4a;
+    --border-md: #434b5c;
+    --border-strong: #566074;
+    --text: #f1f3f7;
+    --text-sub: #c9cfdb;
+    --text-mute: #9aa3b2;
+    --espresso: #f4f5f8;
+    --brown: #ff9a1f;
+    --brown-dark: #ffb347;
+    --info: #7cc0f2;
+    --info-bg: rgba(124,192,242,0.14);
+    --success: #5fcf92;
+    --success-bg: rgba(95,207,146,0.14);
+    --warning: #f2b45c;
+    --warning-bg: rgba(242,180,92,0.14);
+    --shadow: 0 1px 3px rgba(0,0,0,0.4);
+    --modal-bg: #1d212a;
+    --modal-text: #f1f3f7;
+}
 
 /* ── Page Shell ── */
 .orders-page {
@@ -692,13 +757,16 @@
 
 /* ============================================================
    PANEL OVERLAY + DETAIL PANEL
+   Stacking: overlay 1000 < panel 1010 < pay modal 1100 < no-shift 2000
+   (high enough to sit above any sidebar / top bar in the layout)
    ============================================================ */
 .panel-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(26,26,26,0.40);
+    background: rgba(20,16,10,0.55);
+    -webkit-backdrop-filter: blur(3px);
     backdrop-filter: blur(3px);
-    z-index: 200;
+    z-index: 1000;
     animation: overlayIn 0.2s ease;
 }
 
@@ -720,10 +788,13 @@
     max-width: 95vw;
     height: 100vh;
     height: 100dvh; /* real visible height on mobile browsers */
-    background: var(--white);
-    z-index: 300;
+    background: var(--modal-bg); /* solid, never transparent */
+    opacity: 1;
+    isolation: isolate;
+    z-index: 1010;
     flex-direction: column;
-    box-shadow: -8px 0 40px rgba(26,26,26,0.14);
+    box-shadow: -8px 0 40px rgba(0,0,0,0.28);
+    border-left: 1px solid var(--border-md);
     animation: slideIn 0.22s cubic-bezier(0.32, 0, 0.18, 1);
     overflow: hidden;
 }
@@ -746,7 +817,8 @@
     justify-content: space-between;
     padding: 22px 24px 18px;
     border-bottom: 1.5px solid var(--border);
-    background: linear-gradient(135deg, var(--warm-100) 0%, var(--white) 60%);
+    background-color: var(--modal-bg);
+    background-image: linear-gradient(135deg, var(--warm-100) 0%, var(--modal-bg) 60%);
     flex-shrink: 0;
 }
 
@@ -783,17 +855,19 @@
 
     .btn-close:hover {
         background: var(--brown);
-        color: var(--white);
+        color: #fff;
     }
 
 .panel-content {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 20px 24px;
     display: flex;
     flex-direction: column;
     gap: 16px;
+    background: var(--modal-bg);
     scrollbar-width: thin;
     scrollbar-color: var(--border-strong) transparent;
 }
@@ -816,12 +890,13 @@
     border: 1.5px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 16px 18px;
+    flex-shrink: 0;
 }
 
     .panel-section h3 {
         font-size: 14px;
         font-weight: 700;
-        color: var(--brown-dark, var(--brown));
+        color: var(--brown-dark);
         margin: 0 0 14px;
     }
 
@@ -1052,8 +1127,10 @@
     gap: 8px;
     padding: 16px 24px 24px;
     border-top: 1.5px solid var(--border);
-    background: var(--white);
+    background: var(--modal-bg);
     flex-shrink: 0;
+    max-height: 45vh;
+    overflow-y: auto;
 }
 
     .panel-actions form {
@@ -1103,19 +1180,19 @@
 
 .btn-accept {
     background: var(--success);
-    color: var(--white);
+    color: #fff;
     box-shadow: 0 3px 12px rgba(45,122,79,0.18);
 }
 
 .btn-ready {
     background: var(--info);
-    color: var(--white);
+    color: #fff;
     box-shadow: 0 3px 12px rgba(28,92,138,0.18);
 }
 
 .btn-paid {
     background: var(--brown);
-    color: var(--white);
+    color: #fff;
     box-shadow: 0 3px 12px rgba(255,140,0,0.22);
 }
 
@@ -1172,7 +1249,7 @@
 .pay-modal {
     position: fixed;
     inset: 0;
-    z-index: 500;
+    z-index: 1100;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1186,21 +1263,26 @@
 .pay-backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(26,26,26,0.55);
+    background: rgba(20,16,10,0.62);
+    -webkit-backdrop-filter: blur(3px);
     backdrop-filter: blur(3px);
     animation: overlayIn 0.18s ease;
 }
 
 .pay-dialog {
     position: relative;
+    z-index: 1; /* always above its own backdrop */
     width: 440px;
     max-width: 100%;
     max-height: 100%; /* fits the visible screen, even with mobile browser bars */
     display: flex;
     flex-direction: column;
-    background: var(--white);
+    background: var(--modal-bg); /* solid, never transparent */
+    opacity: 1;
+    isolation: isolate;
+    border: 1px solid var(--border-md);
     border-radius: 18px;
-    box-shadow: 0 24px 60px rgba(26,26,26,0.28);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.38);
     overflow: hidden;
     font-family: 'DM Sans', sans-serif;
     animation: payIn 0.2s cubic-bezier(0.32, 0, 0.18, 1);
@@ -1226,7 +1308,8 @@
     align-items: flex-start;
     gap: 12px;
     padding: 20px 22px 14px;
-    background: linear-gradient(135deg, var(--warm-100) 0%, var(--white) 70%);
+    background-color: var(--modal-bg);
+    background-image: linear-gradient(135deg, var(--warm-100) 0%, var(--modal-bg) 70%);
     border-bottom: 1.5px solid var(--border);
 }
 
@@ -1259,7 +1342,7 @@
 
     .pay-x:hover {
         background: var(--brown);
-        color: var(--white);
+        color: #fff;
     }
 
 .pay-body {
@@ -1271,6 +1354,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    background: var(--modal-bg);
 }
 
 .pay-warn {
@@ -1419,7 +1503,7 @@
 
     .pay-clear:hover {
         background: var(--brown);
-        color: var(--white);
+        color: #fff;
     }
 
 .pay-chips {
@@ -1453,7 +1537,7 @@
     .pay-chip.active {
         background: var(--brown);
         border-color: var(--brown);
-        color: var(--white);
+        color: #fff;
     }
 
 /* Change / short result — the answer the cashier is looking for */
@@ -1521,8 +1605,77 @@
     gap: 10px;
     padding: 14px 22px 20px;
     border-top: 1.5px solid var(--border);
-    background: var(--white);
+    background: var(--modal-bg);
 }
+
+/* ── Dark theme touches for the fixed light-colour boxes inside modals ── */
+:root[data-theme="dark"] .order-details-panel .customer-badge.ct-regular,
+:root[data-theme="dark"] .order-details-panel .info-badge.paid,
+:root[data-theme="dark"] .order-details-panel .info-badge.served {
+    background: #343a47;
+    color: #c9cfdb;
+}
+
+:root[data-theme="dark"] .order-details-panel .customer-badge.ct-pwd {
+    background: rgba(96,165,250,0.18);
+    color: #93c5fd;
+}
+
+:root[data-theme="dark"] .order-details-panel .customer-badge.ct-senior {
+    background: rgba(192,132,252,0.18);
+    color: #d8b4fe;
+}
+
+:root[data-theme="dark"] .order-details-panel .info-badge.waiting-payment,
+:root[data-theme="dark"] .pay-warn {
+    background: rgba(242,180,92,0.14);
+    border-color: rgba(242,180,92,0.4);
+    color: #f6c987;
+}
+
+:root[data-theme="dark"] .pay-link {
+    color: #ffb347;
+}
+
+:root[data-theme="dark"] .pay-due-note,
+:root[data-theme="dark"] .order-details-panel .summary-row.discount-row {
+    color: #5fcf92;
+}
+
+:root[data-theme="dark"] .pay-result[data-state="ok"],
+:root[data-theme="dark"] .pay-result[data-state="exact"] {
+    background: rgba(95,207,146,0.14);
+    border-color: rgba(95,207,146,0.4);
+}
+
+    :root[data-theme="dark"] .pay-result[data-state="ok"] .pay-result-label,
+    :root[data-theme="dark"] .pay-result[data-state="ok"] .pay-result-value,
+    :root[data-theme="dark"] .pay-result[data-state="ok"] .pay-result-hint,
+    :root[data-theme="dark"] .pay-result[data-state="exact"] .pay-result-label,
+    :root[data-theme="dark"] .pay-result[data-state="exact"] .pay-result-value,
+    :root[data-theme="dark"] .pay-result[data-state="exact"] .pay-result-hint {
+        color: #5fcf92;
+    }
+
+:root[data-theme="dark"] .pay-result[data-state="short"] {
+    background: rgba(248,113,113,0.14);
+    border-color: rgba(248,113,113,0.4);
+}
+
+    :root[data-theme="dark"] .pay-result[data-state="short"] .pay-result-label,
+    :root[data-theme="dark"] .pay-result[data-state="short"] .pay-result-value,
+    :root[data-theme="dark"] .pay-result[data-state="short"] .pay-result-hint {
+        color: #fca5a5;
+    }
+
+:root[data-theme="dark"] .btn-danger {
+    color: #fca5a5;
+    border-color: rgba(248,113,113,0.4);
+}
+
+    :root[data-theme="dark"] .btn-danger:hover:not(:disabled) {
+        background: rgba(248,113,113,0.12);
+    }
 
 /* ============================================================
    CALL STAFF NOTIFICATIONS
@@ -1960,6 +2113,7 @@
     .order-details-panel {
         width: 100vw;
         max-width: 100vw;
+        border-left: none;
     }
 
     .info-grid {
@@ -2015,7 +2169,6 @@
         min-width: 0;
     }
 
-    /* Staff banner wraps instead of overflowing */
     .staff-notif-inner {
         flex-wrap: wrap;
         padding: 10px 12px;
@@ -2031,7 +2184,6 @@
         min-height: 44px;
     }
 
-    /* Receipt animation clears the screen edge / home bar */
     #receipt-dock {
         left: 12px;
         right: 12px;
@@ -2150,5 +2302,79 @@
     .order-card:hover {
         transition: none;
         transform: none;
+    }
+}
+
+/* ============================================================
+   MODAL HARDENING — keep this block LAST in the file.
+   Forces the payment dialog and detail panel to be fully solid,
+   even if site.css / the layout fades, filters or blends them.
+   ============================================================ */
+.pay-dialog,
+.order-details-panel {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    opacity: 1 !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+:root[data-theme="dark"] .pay-dialog,
+:root[data-theme="dark"] .order-details-panel {
+    background: #1d212a !important;
+    background-color: #1d212a !important;
+}
+
+/* Every section inside is solid too, so nothing underneath can show through */
+.pay-head, .pay-body, .pay-foot,
+.panel-header, .panel-content, .panel-actions {
+    opacity: 1 !important;
+    background-color: #ffffff;
+}
+
+:root[data-theme="dark"] .pay-head,
+:root[data-theme="dark"] .pay-body,
+:root[data-theme="dark"] .pay-foot,
+:root[data-theme="dark"] .panel-header,
+:root[data-theme="dark"] .panel-content,
+:root[data-theme="dark"] .panel-actions {
+    background-color: #1d212a;
+}
+
+/* Unique animation names (no clash with the layout) and transform-only,
+   so the dialog is never mid-fade */
+@keyframes ordPayIn {
+    from {
+        transform: translateY(14px) scale(0.98);
+    }
+
+    to {
+        transform: none;
+    }
+}
+
+@keyframes ordPanelIn {
+    from {
+        transform: translateX(40px);
+    }
+
+    to {
+        transform: none;
+    }
+}
+
+.pay-dialog {
+    animation: ordPayIn 0.2s cubic-bezier(0.32, 0, 0.18, 1) !important;
+}
+
+.order-details-panel {
+    animation: ordPanelIn 0.22s cubic-bezier(0.32, 0, 0.18, 1) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pay-dialog, .order-details-panel {
+        animation: none !important;
     }
 }

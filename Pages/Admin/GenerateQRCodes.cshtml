@@ -9,8 +9,8 @@
     <button type="button" class="btn-add no-print" onclick="openAdd()">
         <i class="fa-solid fa-plus"></i> Add Table
     </button>
-    <button type="button" class="btn-print no-print" onclick="window.print()">
-        <i class="fa-solid fa-print"></i> Print QR Codes
+    <button type="button" class="btn-print no-print" onclick="printAll()">
+        <i class="fa-solid fa-print"></i> Print All
     </button>
 }
 
@@ -19,45 +19,120 @@
 
 @if (!string.IsNullOrEmpty(Model.Message))
 {
-    <div class="qr-alert ok"><i class="fa-solid fa-circle-check"></i> @Model.Message</div>
+    <div class="qr-alert ok no-print"><i class="fa-solid fa-circle-check"></i> @Model.Message</div>
 }
 @if (!string.IsNullOrEmpty(Model.Error))
 {
-    <div class="qr-alert err"><i class="fa-solid fa-circle-exclamation"></i> @Model.Error</div>
+    <div class="qr-alert err no-print"><i class="fa-solid fa-circle-exclamation"></i> @Model.Error</div>
 }
 
-<div class="qr-grid">
+<!-- Summary -->
+<div class="qr-stats no-print">
+    <div class="stat"><span class="stat-num">@Model.QRCodes.Count</span><span class="stat-label">Active tables</span></div>
+    <div class="stat"><span class="stat-num">@Model.ArchivedTables.Count</span><span class="stat-label">Archived</span></div>
+    <div class="stat"><span class="stat-num" id="stat-selected">0</span><span class="stat-label">Selected to print</span></div>
+</div>
+
+<!-- Print toolbar -->
+@if (Model.QRCodes.Any())
+{
+    <div class="print-toolbar no-print">
+        <div class="pt-row">
+            <label class="check-all">
+                <input type="checkbox" id="chk-all" onchange="toggleAll(this.checked)" />
+                Select all
+            </label>
+
+            <div class="pt-range">
+                <i class="fa-solid fa-hashtag"></i>
+                <input type="text" id="range-input" placeholder="Table numbers e.g. 1-5, 8, 12"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();selectByRange();}" />
+                <button type="button" onclick="selectByRange()">Select</button>
+            </div>
+
+            <button type="button" class="link-btn" onclick="selectNotPrinted()">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Select not yet printed
+            </button>
+            <button type="button" class="link-btn" onclick="toggleAll(false)">Clear</button>
+
+            <button type="button" class="btn-print push-right" id="btn-print-selected" onclick="printSelected()" disabled>
+                <i class="fa-solid fa-print"></i> Print Selected (<span id="sel-count">0</span>)
+            </button>
+        </div>
+        <div class="pt-hint" id="range-msg"></div>
+    </div>
+}
+
+<!-- Active QR codes -->
+<div class="qr-grid" id="qr-grid">
     @foreach (var qr in Model.QRCodes)
     {
-        <div class="qr-card">
+        <div class="qr-card" data-table="@qr.TableNumber">
+            <label class="card-check no-print" title="Select for printing">
+                <input type="checkbox" class="row-check" value="@qr.TableNumber" onchange="onCheckChange()" />
+            </label>
+            <span class="printed-badge no-print" hidden><i class="fa-solid fa-check"></i> Printed</span>
+
             <img src="data:image/png;base64,@qr.QRCodeBase64" alt="Table @qr.TableNumber QR" />
 
             <div class="table-title">TABLE @qr.TableNumber</div>
 
             <div class="scan-text">
-                <strong>How to Order</strong><br />
-                1. Scan QR Code<br />
-                2. Select Items<br />
-                3. Checkout Order<br />
-                4. Pay Staff<br />
-                5. Track via <strong>My Order</strong>
+                <strong>How to Order</strong>
+                <ol>
+                    <li>Scan QR Code</li>
+                    <li>Select Items</li>
+                    <li>Checkout Order</li>
+                    <li>Pay Staff</li>
+                    <li>Track via <strong>My Order</strong></li>
+                </ol>
             </div>
 
             <div class="qr-actions no-print">
-                <button type="button" onclick="openEdit(@qr.TableNumber)"><i class="fa-solid fa-pen"></i> Edit</button>
-                <button type="button" class="danger" onclick="openDelete(@qr.TableNumber)"><i class="fa-solid fa-trash"></i> Delete</button>
+                <button type="button" class="warn" onclick="openArchive(@qr.TableNumber)">
+                    <i class="fa-solid fa-box-archive"></i> Archive
+                </button>
             </div>
         </div>
     }
 
     @if (!Model.QRCodes.Any())
     {
-        <div class="qr-empty">
+        <div class="qr-empty no-print">
             <i class="fa-solid fa-qrcode"></i>
-            No tables yet. Click <strong>Add Table</strong> to create your first QR code.
+            No active tables. Click <strong>Add Table</strong> to create a QR code.
         </div>
     }
 </div>
+
+<!-- Archived tables -->
+@if (Model.ArchivedTables.Any())
+{
+    <details class="archived-box no-print">
+        <summary>
+            <i class="fa-solid fa-box-archive"></i> Archived tables (@Model.ArchivedTables.Count)
+        </summary>
+        <p class="archived-note">Archived tables have inactive QR codes. Their orders and transaction history are preserved.</p>
+        <div class="archived-list">
+            @foreach (var a in Model.ArchivedTables)
+            {
+                <div class="archived-item">
+                    <div>
+                        <strong>Table @a.TableNumber</strong>
+                        @if (a.ArchivedAt.HasValue)
+                        {
+                            <span class="muted">Archived @a.ArchivedAt.Value.ToLocalTime().ToString("MMM d, yyyy")</span>
+                        }
+                    </div>
+                    <form method="post" asp-page-handler="Restore">
+                        <input type="hidden" name="tableNumber" value="@a.TableNumber" />
+                        <button type="submit" class="restore-btn"><i class="fa-solid fa-rotate-left"></i> Restore</button>
+                    </form>
+                </div>
+            }
+        </div>
+    </details>
+}
 
 <!-- Add -->
 <dialog class="qr-dialog" id="dlg-add">
@@ -73,30 +148,18 @@
     </form>
 </dialog>
 
-<!-- Edit -->
-<dialog class="qr-dialog" id="dlg-edit">
-    <form method="post" asp-page-handler="Update">
-        <input type="hidden" name="currentNumber" id="edit-id" />
-        <h3>Edit table</h3>
-        <p>The QR code link updates with the new number, so reprint it after saving.</p>
-        <label for="edit-number">Table number</label>
-        <input type="number" id="edit-number" name="tableNumber" min="1" required />
+<!-- Archive -->
+<dialog class="qr-dialog" id="dlg-archive">
+    <form method="post" asp-page-handler="Archive">
+        <input type="hidden" name="tableNumber" id="archive-id" />
+        <h3 id="archive-title">Archive table?</h3>
+        <p>
+            The QR code will be deactivated and customers can no longer order from it.
+            Past orders and transaction history are kept. You can restore the table anytime.
+        </p>
         <div class="dlg-actions">
             <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
-            <button type="submit" class="primary">Save changes</button>
-        </div>
-    </form>
-</dialog>
-
-<!-- Delete -->
-<dialog class="qr-dialog" id="dlg-delete">
-    <form method="post" asp-page-handler="Delete">
-        <input type="hidden" name="tableNumber" id="delete-id" />
-        <h3 id="delete-title">Delete table?</h3>
-        <p>Its QR code will stop working. This can't be undone.</p>
-        <div class="dlg-actions">
-            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
-            <button type="submit" class="danger">Delete table</button>
+            <button type="submit" class="warn-solid">Archive table</button>
         </div>
     </form>
 </dialog>
@@ -104,8 +167,129 @@
 @section Scripts {
 <script>
     const $ = id => document.getElementById(id);
+    const PRINTED_KEY = 'oms-printed-tables';
+
+    /* ---------- Dialogs ---------- */
     function openAdd() { $('add-number').value = ''; $('dlg-add').showModal(); $('add-number').focus(); }
-    function openEdit(n) { $('edit-id').value = n; $('edit-number').value = n; $('dlg-edit').showModal(); $('edit-number').select(); }
-    function openDelete(n) { $('delete-id').value = n; $('delete-title').textContent = 'Delete Table ' + n + '?'; $('dlg-delete').showModal(); }
+    function openArchive(n) {
+        $('archive-id').value = n;
+        $('archive-title').textContent = 'Archive Table ' + n + '?';
+        $('dlg-archive').showModal();
+    }
+
+    /* ---------- Selection ---------- */
+    const checks = () => [...document.querySelectorAll('.row-check')];
+    const selected = () => checks().filter(c => c.checked).map(c => parseInt(c.value));
+
+    function onCheckChange() {
+        const all = checks();
+        const sel = selected();
+        all.forEach(c => c.closest('.qr-card').classList.toggle('is-selected', c.checked));
+        if ($('chk-all')) {
+            $('chk-all').checked = all.length > 0 && sel.length === all.length;
+            $('chk-all').indeterminate = sel.length > 0 && sel.length < all.length;
+        }
+        $('sel-count') && ($('sel-count').textContent = sel.length);
+        $('stat-selected').textContent = sel.length;
+        if ($('btn-print-selected')) $('btn-print-selected').disabled = sel.length === 0;
+    }
+
+    function toggleAll(state) {
+        checks().forEach(c => c.checked = state);
+        if ($('range-msg')) $('range-msg').textContent = '';
+        onCheckChange();
+    }
+
+    // Accepts "1-5, 8, 12"
+    function selectByRange() {
+        const text = $('range-input').value.trim();
+        const msg = $('range-msg');
+        msg.className = 'pt-hint';
+        if (!text) { msg.textContent = ''; return; }
+
+        const wanted = new Set();
+        for (const part of text.split(',')) {
+            const p = part.trim();
+            if (!p) continue;
+            const m = p.match(/^(\d+)\s*-\s*(\d+)$/);
+            if (m) {
+                let a = +m[1], b = +m[2];
+                if (a > b) [a, b] = [b, a];
+                if (b - a > 500) { msg.textContent = 'Range too large.'; msg.classList.add('bad'); return; }
+                for (let i = a; i <= b; i++) wanted.add(i);
+            } else if (/^\d+$/.test(p)) {
+                wanted.add(+p);
+            } else {
+                msg.textContent = 'Invalid entry: "' + p + '". Use numbers like 1-5, 8.';
+                msg.classList.add('bad');
+                return;
+            }
+        }
+
+        const existing = new Set(checks().map(c => parseInt(c.value)));
+        const missing = [...wanted].filter(n => !existing.has(n));
+        checks().forEach(c => { c.checked = wanted.has(parseInt(c.value)); });
+        onCheckChange();
+
+        msg.textContent = missing.length
+            ? 'Not found / archived: ' + missing.join(', ')
+            : selected().length + ' table(s) selected.';
+        if (missing.length) msg.classList.add('bad');
+    }
+
+    /* ---------- Printed tracking (per browser) ---------- */
+    function getPrinted() {
+        try { return new Set(JSON.parse(localStorage.getItem(PRINTED_KEY) || '[]')); }
+        catch { return new Set(); }
+    }
+    function savePrinted(set) {
+        try { localStorage.setItem(PRINTED_KEY, JSON.stringify([...set])); } catch { }
+    }
+    function refreshPrintedBadges() {
+        const printed = getPrinted();
+        document.querySelectorAll('.qr-card').forEach(card => {
+            const n = parseInt(card.dataset.table);
+            const badge = card.querySelector('.printed-badge');
+            if (badge) badge.hidden = !printed.has(n);
+        });
+    }
+    function selectNotPrinted() {
+        const printed = getPrinted();
+        checks().forEach(c => c.checked = !printed.has(parseInt(c.value)));
+        $('range-msg').textContent = '';
+        onCheckChange();
+    }
+
+    /* ---------- Printing ---------- */
+    let pendingPrintList = [];
+
+    function printAll() {
+        document.body.classList.remove('print-selected');
+        pendingPrintList = checks().map(c => parseInt(c.value));
+        window.print();
+    }
+
+    function printSelected() {
+        const sel = selected();
+        if (!sel.length) return;
+        pendingPrintList = sel;
+        document.body.classList.add('print-selected');
+        window.print();
+    }
+
+    window.addEventListener('afterprint', () => {
+        document.body.classList.remove('print-selected');
+        if (pendingPrintList.length) {
+            const printed = getPrinted();
+            pendingPrintList.forEach(n => printed.add(n));
+            savePrinted(printed);
+            pendingPrintList = [];
+            refreshPrintedBadges();
+        }
+    });
+
+    /* ---------- Init ---------- */
+    refreshPrintedBadges();
+    onCheckChange();
 </script>
 }

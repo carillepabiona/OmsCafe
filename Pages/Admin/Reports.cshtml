@@ -20,18 +20,18 @@
     <div class="rpt-filter-right">
         <div class="rpt-filter-group" id="filter-daily">
             <label class="rpt-filter-label">Date</label>
-            <input type="date" class="rpt-input" id="daily-date" value="@DateTime.Today.ToString("yyyy-MM-dd")" onchange="loadReport()" />
+            <input type="date" class="rpt-input" id="daily-date" value="@PhTime.Today.ToString("yyyy-MM-dd")" onchange="loadReport()" />
         </div>
         <div class="rpt-filter-group" id="filter-monthly" style="display:none">
             <label class="rpt-filter-label">Month</label>
-            <input type="month" class="rpt-input" id="monthly-month" value="@DateTime.Today.ToString("yyyy-MM")" onchange="loadReport()" />
+            <input type="month" class="rpt-input" id="monthly-month" value="@PhTime.Today.ToString("yyyy-MM")" onchange="loadReport()" />
         </div>
         <div class="rpt-filter-group" id="filter-yearly" style="display:none">
             <label class="rpt-filter-label">Year</label>
             <select class="rpt-input" id="yearly-year" onchange="loadReport()">
-                @for (int y = DateTime.Today.Year; y >= DateTime.Today.Year - 5; y--)
+                @for (int y = PhTime.Today.Year; y >= PhTime.Today.Year - 5; y--)
                 {
-                    if (y == DateTime.Today.Year) { <option value="@y" selected="selected">@y</option> }
+                    if (y == PhTime.Today.Year) { <option value="@y" selected="selected">@y</option> }
                     else { <option value="@y">@y</option> }
                 }
             </select>
@@ -111,7 +111,7 @@
 
     <div class="rpt-panel">
         <div class="rpt-panel-header">
-            <div class="rpt-panel-title"><i class="fa-solid fa-utensils"></i><h3>Dine-in vs take-out</h3></div>
+            <div class="rpt-panel-title"><i class="fa-solid fa-utensils"></i><h3>Dine-in and take-out</h3></div>
         </div>
         <div class="rpt-panel-body">
             <div class="rpt-chart-box sm rpt-donut-wrap" id="type-box">

@@ -1,0 +1,87 @@
+﻿@* _LogoutGuard.cshtml
+   Rendered once in _Layout.cshtml:  <partial name="_LogoutGuard" />
+   Any sign-out button/link calls:   onclick="logout(); return false;"
+   (signOutNow() is an alias, so either name works.) *@
+
+<style>
+    .lg-modal { --lg-bg:#fff; --lg-text:#1f2430; --lg-muted:#6b7280; --lg-soft:#f6f7f9; --lg-line:rgba(0,0,0,.08);
+        --lg-accent:#c27a12; --lg-accent-soft:rgba(194,122,18,.14); --lg-primary:#2f7d4f; --lg-primary-h:#276b43;
+        position:fixed; inset:0; z-index:3000; display:flex; align-items:center; justify-content:center; padding:16px; }
+    @@media (prefers-color-scheme: dark) {
+        .lg-modal { --lg-bg:#1c2029; --lg-text:#f1f3f7; --lg-muted:#9aa3b2; --lg-soft:#252a35; --lg-line:rgba(255,255,255,.1);
+            --lg-accent:#e0a23c; --lg-accent-soft:rgba(224,162,60,.16); --lg-primary:#3a9a62; --lg-primary-h:#34885a; }
+    }
+    .lg-modal[hidden] { display:none !important; }
+    .lg-backdrop { position:absolute; inset:0; background:rgba(15,18,25,.55); backdrop-filter:blur(3px); }
+    .lg-dialog { position:relative; width:100%; max-width:420px; overflow:hidden; border-radius:20px; background:var(--lg-bg); color:var(--lg-text);
+        box-shadow:0 24px 60px rgba(0,0,0,.35); animation:lgPop .22s cubic-bezier(.2,.9,.3,1.1); font-family:'DM Sans',system-ui,sans-serif; text-align:center; }
+    .lg-hero { padding:30px 24px 6px; background:linear-gradient(180deg,var(--lg-accent-soft),transparent); display:flex; justify-content:center; }
+    .lg-icon { width:68px; height:68px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:var(--lg-bg); color:var(--lg-accent); box-shadow:0 6px 18px rgba(0,0,0,.12); }
+    .lg-icon svg { width:32px; height:32px; }
+    .lg-body { padding:12px 28px 0; }
+    .lg-dialog h2 { margin:0 0 8px; font-size:21px; font-weight:700; }
+    .lg-dialog p { margin:0; font-size:14.5px; line-height:1.55; color:var(--lg-muted); }
+    .lg-actions { display:flex; flex-direction:column; gap:8px; padding:20px 28px 24px; }
+    .lg-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:46px; padding:0 18px; border:0; border-radius:12px;
+        font:inherit; font-size:15px; font-weight:600; text-decoration:none; cursor:pointer; transition:background .15s, transform .05s; }
+    .lg-btn:active { transform:scale(.98); }
+    .lg-btn:focus-visible { outline:2px solid #4f8cff; outline-offset:2px; }
+    .lg-btn svg { width:18px; height:18px; }
+    .lg-primary { background:var(--lg-primary); color:#fff; }
+    .lg-primary:hover { background:var(--lg-primary-h); color:#fff; }
+    .lg-ghost { background:transparent; color:var(--lg-muted); min-height:40px; font-weight:500; }
+    .lg-ghost:hover { background:var(--lg-soft); color:var(--lg-text); }
+    @@keyframes lgPop { from { opacity:0; transform:translateY(8px) scale(.96); } to { opacity:1; transform:none; } }
+    @@media (prefers-reduced-motion: reduce) { .lg-dialog { animation:none; } }
+</style>
+
+@* Explicit action + explicit antiforgery token, so the POST never fails with 400 *@
+<form id="lg-form" method="post" action="/Logout" style="display:none">
+    @Html.AntiForgeryToken()
+</form>
+
+<div id="lg-modal" class="lg-modal" hidden>
+    <div class="lg-backdrop" onclick="closeLogoutModal()"></div>
+    <div class="lg-dialog" role="alertdialog" aria-modal="true" aria-labelledby="lg-title" aria-describedby="lg-msg">
+        <div class="lg-hero">
+            <div class="lg-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </div>
+        </div>
+        <div class="lg-body">
+            <h2 id="lg-title">Close your shift first</h2>
+            <p id="lg-msg">You still have an open shift. Count your cash and close your shift before logging out.</p>
+        </div>
+        <div class="lg-actions">
+            <a href="/Cashier/CloseShift" class="lg-btn lg-primary">Go to Close Shift</a>
+            <button type="button" class="lg-btn lg-ghost" onclick="closeLogoutModal()">Stay logged in</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Use on any logout button:  onclick="logout(); return false;"
+    async function logout() {
+        try {
+            const res = await fetch('/Logout?handler=Status', {
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            if (res.ok) {
+                const d = await res.json();
+                if (d.hasOpenShift) { document.getElementById('lg-modal').hidden = false; return; }
+            }
+        } catch (e) { /* the server checks again on submit, so it is safe to continue */ }
+        document.getElementById('lg-form').submit();
+    }
+
+    // Alias, in case the layout calls the other name
+    function signOutNow() { return logout(); }
+
+    function closeLogoutModal() { document.getElementById('lg-modal').hidden = true; }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLogoutModal(); });
+</script>

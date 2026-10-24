@@ -1,0 +1,159 @@
+﻿@page
+@model OmsCafe.Pages.Admin.CashReconciliationModel
+@{
+    ViewData["Title"] = "Cash Reconciliation";
+    ViewData["Subtitle"] = "Review cashier shift reports and resolve discrepancies";
+
+    string Peso(decimal v) => "₱" + v.ToString("N2");
+    string Signed(decimal v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Peso(Math.Abs(v));
+    string Link(int id)
+    {
+        var d = Request.Query.ToDictionary(k => k.Key, k => k.Value.ToString());
+        d["report"] = id.ToString();
+        return "?" + string.Join("&", d.Select(k => $"{Uri.EscapeDataString(k.Key)}={Uri.EscapeDataString(k.Value)}"));
+    }
+    var det = Model.Detail;
+}
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="~/css/cashreconciliation.css" />
+
+<div class="rc-page">
+
+    @if (TempData["Ok"] is string ok) { <div class="rc-flash rc-ok">@ok</div> }
+    @if (TempData["Error"] is string err) { <div class="rc-flash rc-err">@err</div> }
+
+    <div class="rc-tiles">
+        <div class="rc-tile"><span>Awaiting review</span><strong>@Model.PendingCount</strong></div>
+        <div class="rc-tile @(Model.FlaggedCount > 0 ? "rc-tile-bad" : "")"><span>Flagged</span><strong>@Model.FlaggedCount</strong></div>
+        <div class="rc-tile"><span>Total shortages</span><strong class="rc-short">@Peso(Model.TotalShort)</strong></div>
+        <div class="rc-tile"><span>Total overages</span><strong class="rc-over">@Peso(Model.TotalOver)</strong></div>
+    </div>
+
+    <form method="get" class="rc-filters">
+        <label>Cashier
+            <select name="CashierId">
+                <option value="">All cashiers</option>
+                @foreach (var c in Model.Cashiers)
+                {
+                    <option value="@c.Id" selected="@(Model.CashierId == c.Id)">@c.Name</option>
+                }
+            </select>
+        </label>
+        <label>From <input type="date" name="From" value="@Model.From?.ToString("yyyy-MM-dd")" /></label>
+        <label>To <input type="date" name="To" value="@Model.To?.ToString("yyyy-MM-dd")" /></label>
+        <label>Result
+            <select name="Result">
+                <option value="">All</option>
+                @foreach (var o in new[] { "Short", "Over", "Balanced" })
+                {
+                    <option value="@o" selected="@(Model.Result == o)">@o</option>
+                }
+            </select>
+        </label>
+        <label>Review
+            <select name="Review">
+                <option value="">All</option>
+                @foreach (var o in new[] { "Pending", "Verified", "Flagged" })
+                {
+                    <option value="@o" selected="@(Model.Review == o)">@o</option>
+                }
+            </select>
+        </label>
+        <button type="submit" class="rc-btn">Apply</button>
+        <a href="?" class="rc-link">Clear</a>
+    </form>
+
+    <div class="rc-layout @(det != null ? "rc-has-detail" : "")">
+
+        <section class="rc-card rc-list">
+            <div class="rc-scroll">
+            <table class="rc-table">
+                <thead>
+                    <tr><th>Submitted</th><th>Cashier</th><th class="num">Expected</th><th class="num">Counted</th><th class="num">Variance</th><th>Review</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    <tr class="@(det?.Row.Id == r.Id ? "rc-selected" : "")">
+                        <td><a href="@Link(r.Id)">@r.SubmittedAt.ToString("MMM d, h:mm tt")</a></td>
+                        <td>@r.CashierName</td>
+                        <td class="num">@Peso(r.Expected)</td>
+                        <td class="num">@Peso(r.Actual)</td>
+                        <td class="num"><span class="rc-var rc-@r.Result.ToLower()">@Signed(r.Variance)</span></td>
+                        <td><span class="rc-pill rc-st-@r.ReviewStatus.ToLower()">@r.ReviewStatus</span></td>
+                    </tr>
+                }
+                @if (!Model.Rows.Any())
+                {
+                    <tr><td colspan="6" class="rc-empty">No reports match these filters. Widen the date range or clear the filters.</td></tr>
+                }
+                </tbody>
+            </table>
+            </div>
+        </section>
+
+        @if (det != null)
+        {
+            <aside class="rc-card rc-detail">
+                <div class="rc-detail-head">
+                    <div>
+                        <h2>@det.Row.CashierName</h2>
+                        <p>Shift #@det.ShiftId · @det.Row.OpenedAt.ToString("MMM d, h:mm tt") to @(det.ClosedAt?.ToString("h:mm tt") ?? "—")</p>
+                    </div>
+                    <span class="rc-pill rc-st-@det.Row.ReviewStatus.ToLower()">@det.Row.ReviewStatus</span>
+                </div>
+
+                <div class="rc-big rc-@det.Row.Result.ToLower()">
+                    <span>@(det.Row.Result == "Balanced" ? "Balanced" : det.Row.Result + " by")</span>
+                    <strong>@Peso(Math.Abs(det.Row.Variance))</strong>
+                </div>
+
+                <h3>Recorded sales vs cash collected</h3>
+                <dl class="rc-rows">
+                    <div><dt>Opening float</dt><dd>@Peso(det.OpeningFloat)</dd></div>
+                    <div><dt>Recorded sales (@det.PaymentCount payments)</dt><dd>@Peso(det.RecordedSales)</dd></div>
+                    <div><dt>Net cash collected (received − change)</dt><dd>@Peso(det.CashCollected)</dd></div>
+                    <div><dt>Expected in drawer at submission</dt><dd>@Peso(det.Row.Expected)</dd></div>
+                    <div><dt>Counted by cashier</dt><dd>@Peso(det.Row.Actual)</dd></div>
+                </dl>
+
+                @if (det.RecordedSales != det.CashCollected)
+                {
+                    <div class="rc-warn">Recorded sales and net cash collected differ by @Peso(Math.Abs(det.RecordedSales - det.CashCollected)). Check the payments for this shift.</div>
+                }
+                @if (det.LedgerExpected != det.Row.Expected)
+                {
+                    <div class="rc-warn">Payments now give an expected drawer of @Peso(det.LedgerExpected), but the report was submitted with @Peso(det.Row.Expected). Payments may have changed after submission.</div>
+                }
+
+                <h3>Cashier's explanation</h3>
+                <p class="rc-text">@(string.IsNullOrWhiteSpace(det.Explanation) ? "None given." : det.Explanation)</p>
+
+                @if (det.Row.ReviewStatus == "Pending")
+                {
+                    <form method="post" asp-page-handler="Review" class="rc-review">
+                        <input type="hidden" name="reportId" value="@det.Row.Id" />
+                        <input type="hidden" name="returnQuery" value="@Request.QueryString.Value" />
+                        <label>Manager notes <em>(required to flag)</em>
+                            <textarea name="notes" rows="3" maxlength="500" placeholder="What did you check, or what needs investigating?"></textarea>
+                        </label>
+                        <div class="rc-actions">
+                            <button type="submit" name="decision" value="Verified" class="rc-btn">Verify report</button>
+                            <button type="submit" name="decision" value="Flagged" class="rc-btn rc-btn-flag">Flag for investigation</button>
+                        </div>
+                    </form>
+                }
+                else
+                {
+                    <h3>Review</h3>
+                    <p class="rc-text">@det.Row.ReviewStatus by @det.ReviewedByName on @det.ReviewedAt?.ToString("MMM d, h:mm tt")</p>
+                    @if (!string.IsNullOrWhiteSpace(det.ManagerNotes))
+                    {
+                        <p class="rc-text"><b>Notes:</b> @det.ManagerNotes</p>
+                    }
+                }
+            </aside>
+        }
+    </div>
+</div>

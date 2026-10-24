@@ -14,8 +14,8 @@ namespace OmsCafe.Models
 
         public bool IsRequired { get; set; }
         public int DisplayOrder { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = PhTime.Now;
+        public DateTime UpdatedAt { get; set; } = PhTime.Now;
 
         public ICollection<CustomizationOption> Options { get; set; } = new List<CustomizationOption>();
         public ICollection<MenuItem> MenuItems { get; set; } = new List<MenuItem>();

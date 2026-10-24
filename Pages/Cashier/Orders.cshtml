@@ -3,14 +3,131 @@
 @functions {
     // "Waiting Payment" -> "waiting-payment" (safe for CSS classes and classList)
     static string Slug(string s) => (s ?? "").Trim().ToLower().Replace(' ', '-');
+
+    // verified type wins, then what the customer requested, else Regular
+    static string CustTypeOf(string discountType, string discountRequest) =>
+        !string.IsNullOrEmpty(discountType)
+            ? discountType
+            : (discountRequest == "PWD" || discountRequest == "Senior") ? discountRequest : "Regular";
 }
 @{
     ViewData["Title"] = "Order Management";
     ViewData["Subtitle"] = "Manage all active orders in real-time";
+
+    // ── Discount overview numbers (active orders only) ──
+    var dsActive = Model.AllOrders
+        .Where(o => !OmsCafe.Pages.Cashier.OrdersModel.IsCompleted(o.Status) && o.Status != "cancelled")
+        .ToList();
+    var dsRegular = dsActive.Count(o => CustTypeOf(o.DiscountType, o.DiscountRequest) == "Regular");
+    var dsSenior = dsActive.Count(o => CustTypeOf(o.DiscountType, o.DiscountRequest) == "Senior");
+    var dsPwd = dsActive.Count(o => CustTypeOf(o.DiscountType, o.DiscountRequest) == "PWD");
+    var dsGiven = Model.AllOrders
+        .Where(o => o.Status != "cancelled" && !string.IsNullOrEmpty(o.DiscountType))
+        .Sum(o => o.DiscountAmount);
+    var dsPending = dsActive
+        .Where(o => o.Status == "Waiting Payment"
+                    && string.IsNullOrEmpty(o.DiscountType)
+                    && (o.DiscountRequest == "PWD" || o.DiscountRequest == "Senior"))
+        .ToList();
+
 }
 
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="~/css/orders.css" />
+<link rel="stylesheet" href="~/css/orders.css" asp-append-version="true" />
+
+<style>
+    /* ── TAKE-OUT CUSTOMER TYPE CHOOSER (Regular / Senior / PWD) ── */
+    .tk-type[hidden], .tk-fields[hidden], .tk-regular-note[hidden] { display: none !important; }
+    .tk-type { margin: 0 0 14px; }
+    .tk-type-label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .7; margin-bottom: 6px; }
+    .tk-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .tk-opt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 56px; padding: 8px 6px; border: 1.5px solid rgba(128, 128, 128, .35); border-radius: 12px; background: transparent; color: inherit; font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; transition: border-color .15s, background .15s, transform .05s; }
+    .tk-opt small { font-weight: 400; font-size: 11px; opacity: .65; }
+    .tk-opt:hover:not(:disabled) { border-color: rgba(128, 128, 128, .7); }
+    .tk-opt:active:not(:disabled) { transform: scale(.98); }
+    .tk-opt:focus-visible { outline: 2px solid #4f8cff; outline-offset: 2px; }
+    .tk-opt.active { border-color: #2f7d4f; background: rgba(47, 125, 79, .12); }
+    .tk-opt.active[data-type="Senior"] { border-color: #c27a12; background: rgba(194, 122, 18, .12); }
+    .tk-opt.active[data-type="PWD"] { border-color: #2f6bd6; background: rgba(47, 107, 214, .12); }
+    .tk-opt:disabled { opacity: .55; cursor: not-allowed; }
+    .tk-lock-hint { margin: 6px 0 0; font-size: 12px; opacity: .7; }
+    .tk-fields { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+    .tk-regular-note { margin-top: 12px; padding: 12px; border-radius: 12px; background: rgba(47, 125, 79, .1); font-size: 14px; }
+    .tk-regular-note p { margin: 0 0 10px; }
+
+    /* ── TAKE-OUT QUICK TYPE ROW (on the order card) ── */
+    .tk-quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0 4px; }
+    .tk-quick-btn { padding: 7px 4px; border: 1.5px solid rgba(128, 128, 128, .35); border-radius: 10px; background: transparent; color: inherit; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: border-color .15s, background .15s; }
+    .tk-quick-btn:hover { border-color: rgba(128, 128, 128, .75); }
+    .tk-quick-btn:focus-visible { outline: 2px solid #4f8cff; outline-offset: 2px; }
+    .tk-quick-btn.active[data-type="Regular"] { border-color: #2f7d4f; background: rgba(47, 125, 79, .12); }
+    .tk-quick-btn.active[data-type="Senior"] { border-color: #c27a12; background: rgba(194, 122, 18, .12); }
+    .tk-quick-btn.active[data-type="PWD"] { border-color: #2f6bd6; background: rgba(47, 107, 214, .12); }
+
+    /* ── DISCOUNT OVERVIEW SECTION ── */
+    .ds-section { margin: 0 0 18px; padding: 16px; border: 1.5px solid rgba(128, 128, 128, .25); border-radius: 16px; }
+    .ds-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .ds-head h3 { margin: 0; font-size: 16px; }
+    .ds-sub { font-size: 12px; opacity: .65; }
+    .ds-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+    .ds-chip, .ds-stat { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border: 1.5px solid rgba(128, 128, 128, .3); border-radius: 12px; background: transparent; color: inherit; font: inherit; font-size: 13px; text-align: left; }
+    .ds-chip { cursor: pointer; transition: border-color .15s, background .15s; }
+    .ds-chip:hover { border-color: rgba(128, 128, 128, .7); }
+    .ds-chip:focus-visible { outline: 2px solid #4f8cff; outline-offset: 2px; }
+    .ds-chip.active { border-color: #2f7d4f; background: rgba(47, 125, 79, .12); }
+    .ds-chip.active[data-ctf="Senior"] { border-color: #c27a12; background: rgba(194, 122, 18, .12); }
+    .ds-chip.active[data-ctf="PWD"] { border-color: #2f6bd6; background: rgba(47, 107, 214, .12); }
+    .ds-n { font-size: 20px; font-weight: 700; line-height: 1.1; }
+    .ds-pending[hidden] { display: none !important; }
+    .ds-pending { margin-top: 12px; padding: 12px; border-radius: 12px; background: rgba(194, 122, 18, .12); }
+    .ds-pending-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+    .ds-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 13px; border-top: 1px solid rgba(128, 128, 128, .2); }
+    .ds-item:first-child { border-top: 0; }
+    .ds-item-btn { padding: 6px 12px; border: 1.5px solid currentColor; border-radius: 10px; background: transparent; color: inherit; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+
+    /* cards hidden by the customer-type filter */
+    .order-card.ct-hidden { display: none !important; }
+
+    /* ── NO OPEN SHIFT POPUP ── */
+    .ns-modal {
+        --ns-bg: #ffffff; --ns-text: #1f2430; --ns-muted: #6b7280; --ns-line: rgba(0, 0, 0, .08);
+        --ns-soft: #f6f7f9; --ns-accent: #c27a12; --ns-accent-soft: rgba(194, 122, 18, .14);
+        --ns-primary: #2f7d4f; --ns-primary-hover: #276b43;
+        position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 16px;
+    }
+    @@media (prefers-color-scheme: dark) {
+        .ns-modal { --ns-bg: #1c2029; --ns-text: #f1f3f7; --ns-muted: #9aa3b2; --ns-line: rgba(255, 255, 255, .1); --ns-soft: #252a35; --ns-accent: #e0a23c; --ns-accent-soft: rgba(224, 162, 60, .16); --ns-primary: #3a9a62; --ns-primary-hover: #34885a; }
+    }
+    .ns-modal[hidden] { display: none !important; }
+    .ns-backdrop { position: absolute; inset: 0; background: rgba(15, 18, 25, .55); backdrop-filter: blur(3px); animation: nsFade .2s ease-out; }
+    .ns-dialog { position: relative; width: 100%; max-width: 440px; overflow: hidden; border-radius: 20px; background: var(--ns-bg); color: var(--ns-text); box-shadow: 0 24px 60px rgba(0, 0, 0, .35); animation: nsPop .22s cubic-bezier(.2, .9, .3, 1.1); font-family: 'DM Sans', system-ui, sans-serif; }
+    .ns-close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .06); color: var(--ns-muted); font-size: 20px; line-height: 1; cursor: pointer; z-index: 1; transition: background .15s, color .15s; }
+    .ns-close:hover { background: rgba(0, 0, 0, .12); color: var(--ns-text); }
+    .ns-hero { display: flex; justify-content: center; padding: 32px 24px 8px; background: linear-gradient(180deg, var(--ns-accent-soft), transparent); }
+    .ns-icon { position: relative; width: 76px; height: 76px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--ns-bg); color: var(--ns-accent); box-shadow: 0 6px 18px rgba(0, 0, 0, .12); }
+    .ns-icon::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; border: 2px solid var(--ns-accent); opacity: 0; animation: nsPulse 2.2s ease-out infinite; }
+    .ns-icon svg { width: 36px; height: 36px; }
+    .ns-body { padding: 12px 28px 4px; text-align: center; }
+    .ns-tag { display: inline-block; margin-bottom: 8px; padding: 3px 10px; border-radius: 999px; background: var(--ns-accent-soft); color: var(--ns-accent); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .ns-dialog h2 { margin: 0 0 8px; font-family: 'Syne', 'DM Sans', system-ui, sans-serif; font-size: 22px; font-weight: 700; }
+    .ns-dialog p { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--ns-muted); }
+    .ns-steps { list-style: none; margin: 18px 0 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; border-radius: 14px; background: var(--ns-soft); border: 1px solid var(--ns-line); text-align: left; font-size: 13.5px; }
+    .ns-steps li { display: flex; align-items: center; gap: 10px; }
+    .ns-steps li span { flex: none; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--ns-accent); color: #fff; font-size: 12px; font-weight: 700; }
+    .ns-actions { display: flex; flex-direction: column; gap: 8px; padding: 20px 28px 24px; }
+    .ns-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 18px; border: 0; border-radius: 12px; font: inherit; font-size: 15px; font-weight: 600; text-decoration: none; cursor: pointer; transition: background .15s, transform .05s; }
+    .ns-btn:active { transform: scale(.98); }
+    .ns-btn:focus-visible, .ns-close:focus-visible { outline: 2px solid #4f8cff; outline-offset: 2px; }
+    .ns-btn svg { width: 18px; height: 18px; }
+    .ns-btn-primary { background: var(--ns-primary); color: #fff; }
+    .ns-btn-primary:hover { background: var(--ns-primary-hover); color: #fff; }
+    .ns-btn-ghost { background: transparent; color: var(--ns-muted); min-height: 40px; font-weight: 500; }
+    .ns-btn-ghost:hover { color: var(--ns-text); background: var(--ns-soft); }
+    @@keyframes nsPop { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
+    @@keyframes nsFade { from { opacity: 0; } to { opacity: 1; } }
+    @@keyframes nsPulse { 0% { opacity: .5; transform: scale(.9); } 100% { opacity: 0; transform: scale(1.25); } }
+    @@media (prefers-reduced-motion: reduce) { .ns-dialog, .ns-backdrop, .ns-icon::after { animation: none; } }
+</style>
 
 <!-- ── CALL STAFF NOTIFICATION BANNER ── -->
 <div id="staff-notif-banner" style="display:none;" role="alert">
@@ -156,6 +273,53 @@
         }
     </div>
 
+    <!-- ══════════════ DISCOUNTS & CUSTOMER TYPES ══════════════ -->
+    @* @if (Model.SelectedTab != "completed")
+    {
+        <section class="ds-section" id="discount-overview" aria-label="Discounts and customer types">
+            <div class="ds-head">
+                <h3>Discounts &amp; Customer Types</h3>
+                <span class="ds-sub">Active orders · tap a type to filter the list</span>
+            </div>
+
+            <div class="ds-grid">
+                <button type="button" class="ds-chip active" data-ctf="all" onclick="applyCustomerFilter('all')">
+                    <span class="ds-n" id="ds-all">@dsActive.Count</span><span>All</span>
+                </button>
+                <button type="button" class="ds-chip" data-ctf="Regular" onclick="applyCustomerFilter('Regular')">
+                    <span class="ds-n" id="ds-regular">@dsRegular</span><span>👤 Regular</span>
+                </button>
+                <button type="button" class="ds-chip" data-ctf="Senior" onclick="applyCustomerFilter('Senior')">
+                    <span class="ds-n" id="ds-senior">@dsSenior</span><span>🪪 Senior</span>
+                </button>
+                <button type="button" class="ds-chip" data-ctf="PWD" onclick="applyCustomerFilter('PWD')">
+                    <span class="ds-n" id="ds-pwd">@dsPwd</span><span>🪪 PWD</span>
+                </button>
+                <div class="ds-stat">
+                    <span class="ds-n" id="ds-given">₱@dsGiven.ToString("N2")</span>
+                    <span>Discount given</span>
+                </div>
+            </div>
+
+            <div class="ds-pending" id="ds-pending" @(dsPending.Any() ? "" : "hidden")>
+                <div class="ds-pending-title">⚠ <span id="ds-pending-count">@dsPending.Count</span> waiting for ID verification</div>
+                <div id="ds-pending-list">
+                    @foreach (var p in dsPending)
+                    {
+                        <div class="ds-item">
+                            <span>
+                                <strong>#@p.OrderNumber</strong>
+                                · @(p.Type == "take-out" ? "Take-Out" : "Dine-In")
+                                · requested @p.DiscountRequest
+                            </span>
+                            <button type="button" class="ds-item-btn" onclick="verifyFromList(@p.Id)">Verify ID</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </section>
+    } *@
+
     <!-- Orders Grid -->
     <div class="orders-list-section">
         <div class="empty-state" id="empty-state" style="@(Model.OrdersFiltered.Any() ? "display:none" : "")">
@@ -249,6 +413,25 @@
                             </div>
                         }
 
+                        @* ── TAKE-OUT ONLY: quick customer type row ── *@
+                        @if (order.Type == "take-out" && order.Status == "Waiting Payment" && !custVerified)
+                        {
+                            <div class="tk-quick" id="tk-quick-@order.Id" role="group" aria-label="Customer type" onclick="event.stopPropagation()">
+                                <button type="button" class="tk-quick-btn @(custType == "Regular" ? "active" : "")" data-type="Regular"
+                                        onclick="event.stopPropagation(); tkQuick(@order.Id, 'Regular')">
+                                    👤 Regular
+                                </button>
+                                <button type="button" class="tk-quick-btn @(custType == "Senior" ? "active" : "")" data-type="Senior"
+                                        onclick="event.stopPropagation(); tkQuick(@order.Id, 'Senior')">
+                                    🪪 Senior
+                                </button>
+                                <button type="button" class="tk-quick-btn @(custType == "PWD" ? "active" : "")" data-type="PWD"
+                                        onclick="event.stopPropagation(); tkQuick(@order.Id, 'PWD')">
+                                    🪪 PWD
+                                </button>
+                            </div>
+                        }
+
                         @if (order.Status == "printing")
                         {
                             <div class="print-indicator" id="print-ind-@order.Id">
@@ -308,6 +491,7 @@
             ? order.DiscountRequest
             : "Regular";
     var pVerified = !string.IsNullOrEmpty(order.DiscountType);
+    var isTakeOut = order.Type == "take-out";
 
     <div id="panel-overlay-@order.Id" class="panel-overlay" style="display:none;" onclick="closePanel(@order.Id)"></div>
 
@@ -390,14 +574,82 @@
             </div>
 
             @* ── DISCOUNT SECTION ──
-               Lives outside panel-actions so the JS rebuild never wipes what the cashier is typing. *@
-            @if (order.DiscountRequest == "PWD" || order.DiscountRequest == "Senior" || !string.IsNullOrEmpty(order.DiscountType))
+               Lives outside panel-actions so the JS rebuild never wipes what the cashier is typing.
+               Take-out orders waiting for payment ALWAYS get the Regular / Senior / PWD chooser.
+               Dine-in keeps its original behaviour. *@
+            @if ((isTakeOut && order.Status == "Waiting Payment")
+                || order.DiscountRequest == "PWD" || order.DiscountRequest == "Senior"
+                || !string.IsNullOrEmpty(order.DiscountType))
             {
                 <div class="panel-section" id="discount-section-@order.Id">
-                    <h3>Discount</h3>
+                    <h3>@(isTakeOut && order.Status == "Waiting Payment" ? "Customer Type & Discount" : "Discount")</h3>
 
-                    @if (string.IsNullOrEmpty(order.DiscountType) && order.Status == "Waiting Payment")
+                    @if (string.IsNullOrEmpty(order.DiscountType) && order.Status == "Waiting Payment" && isTakeOut)
                     {
+                        @* ═══ TAKE-OUT: choose Regular / Senior / PWD ═══ *@
+                        var tkInit = (order.DiscountRequest == "PWD" || order.DiscountRequest == "Senior")
+                            ? order.DiscountRequest
+                            : "Regular";
+
+                        <p class="discount-intro">
+                            Select the customer type for this take-out order.
+                            @if (tkInit != "Regular")
+                            {
+                                <text>Customer requested <strong>@tkInit</strong>. Check their ID before applying.</text>
+                            }
+                        </p>
+
+                        <form method="post" asp-page-handler="ApplyDiscount" class="discount-form" id="tk-form-@order.Id">
+                            <input type="hidden" name="orderId" value="@order.Id" />
+                            <input type="hidden" name="selectedTab" value="@Model.SelectedTab" />
+                            <input type="hidden" name="selectedFilter" value="@Model.SelectedFilter" />
+                            <input type="hidden" name="discountType" id="tk-dtype-@order.Id" value="@tkInit" />
+
+                            <div class="tk-seg" role="radiogroup" aria-label="Customer type">
+                                <button type="button" class="tk-opt @(tkInit == "Regular" ? "active" : "")" data-type="Regular"
+                                        role="radio" aria-checked="@(tkInit == "Regular" ? "true" : "false")"
+                                        onclick="tkSelectType(@order.Id, 'Regular')">
+                                    <span>👤 Regular</span><small>No discount</small>
+                                </button>
+                                <button type="button" class="tk-opt @(tkInit == "Senior" ? "active" : "")" data-type="Senior"
+                                        role="radio" aria-checked="@(tkInit == "Senior" ? "true" : "false")"
+                                        onclick="tkSelectType(@order.Id, 'Senior')">
+                                    <span>🪪 Senior</span><small>20% off</small>
+                                </button>
+                                <button type="button" class="tk-opt @(tkInit == "PWD" ? "active" : "")" data-type="PWD"
+                                        role="radio" aria-checked="@(tkInit == "PWD" ? "true" : "false")"
+                                        onclick="tkSelectType(@order.Id, 'PWD')">
+                                    <span>🪪 PWD</span><small>20% off</small>
+                                </button>
+                            </div>
+
+                            <div class="tk-regular-note" id="tk-reg-@order.Id" @(tkInit == "Regular" ? "" : "hidden")>
+                                <p>Regular customer. No discount applies, so you can take payment right away.</p>
+                                <button type="button" class="action-btn btn-paid" onclick="openPayModal(@order.Id)">
+                                    <i class="fa-solid fa-peso-sign"></i> Take payment
+                                </button>
+                            </div>
+
+                            <div class="tk-fields" id="tk-fields-@order.Id" @(tkInit == "Regular" ? "hidden" : "")>
+                                <label class="field">
+                                    <span>ID number</span>
+                                    <input type="text" name="idNumber" placeholder="Enter ID number" required
+                                           disabled="@(tkInit == "Regular")" />
+                                </label>
+                                <label class="field">
+                                    <span>Name on ID</span>
+                                    <input type="text" name="idName" placeholder="Enter name as shown on ID" required
+                                           disabled="@(tkInit == "Regular")" />
+                                </label>
+                                <button type="submit" class="action-btn btn-accept" id="tk-submit-@order.Id">
+                                    Verify &amp; Apply 20% Discount
+                                </button>
+                            </div>
+                        </form>
+                    }
+                    else if (string.IsNullOrEmpty(order.DiscountType) && order.Status == "Waiting Payment")
+                    {
+                        @* ═══ DINE-IN: original behaviour (unchanged) ═══ *@
                         <p class="discount-intro">
                             Customer requested <strong>@order.DiscountRequest</strong>. Check their ID, then apply the discount before taking payment.
                         </p>
@@ -584,6 +836,23 @@
         </div>
 
         <div class="pay-body">
+            <!-- Take-out only: customer type chooser -->
+            <div class="tk-type" id="pay-type" hidden>
+                <span class="tk-type-label">Customer type · Take-Out</span>
+                <div class="tk-seg" role="radiogroup" aria-label="Customer type">
+                    <button type="button" class="tk-opt" data-type="Regular" role="radio" aria-checked="false" onclick="setPayType('Regular')">
+                        <span>👤 Regular</span><small>No discount</small>
+                    </button>
+                    <button type="button" class="tk-opt" data-type="Senior" role="radio" aria-checked="false" onclick="setPayType('Senior')">
+                        <span>🪪 Senior</span><small>20% off</small>
+                    </button>
+                    <button type="button" class="tk-opt" data-type="PWD" role="radio" aria-checked="false" onclick="setPayType('PWD')">
+                        <span>🪪 PWD</span><small>20% off</small>
+                    </button>
+                </div>
+                <p class="tk-lock-hint" id="pay-type-hint" hidden></p>
+            </div>
+
             <div class="pay-warn" id="pay-warn" hidden>
                 <i class="fa-solid fa-triangle-exclamation"></i>
                 <div>
@@ -623,6 +892,46 @@
     </form>
 </div>
 
+<!-- ══════════════ NO OPEN SHIFT POPUP ══════════════ -->
+<div id="noshift-modal" class="ns-modal" hidden>
+    <div class="ns-backdrop" onclick="closeNoShiftModal()"></div>
+    <div class="ns-dialog" role="alertdialog" aria-modal="true" aria-labelledby="ns-title" aria-describedby="ns-msg">
+        <button type="button" class="ns-close" onclick="closeNoShiftModal()" aria-label="Close">×</button>
+
+        <div class="ns-hero">
+            <div class="ns-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <polyline points="12 7 12 12 15.5 14"></polyline>
+                </svg>
+            </div>
+        </div>
+
+        <div class="ns-body">
+            <span class="ns-tag">Payments paused</span>
+            <h2 id="ns-title">Shift required</h2>
+            <p id="ns-msg">No open shift. Go to Close Shift and open your shift before taking payments.</p>
+
+            <ol class="ns-steps">
+                <li><span>1</span><div>Open the <strong>Close Shift</strong> page</div></li>
+                <li><span>2</span><div>Open your shift with your opening float</div></li>
+                <li><span>3</span><div>Come back here and take payments</div></li>
+            </ol>
+        </div>
+
+        <div class="ns-actions">
+            <a asp-page="/Cashier/CloseShift" class="ns-btn ns-btn-primary">
+                Go to Close Shift
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+            </a>
+            <button type="button" class="ns-btn ns-btn-ghost" onclick="closeNoShiftModal()">Not now</button>
+        </div>
+    </div>
+</div>
+
 <!-- Receipt printer animation dock -->
 <div id="receipt-dock" aria-live="polite"></div>
 
@@ -641,7 +950,7 @@
             items = o.Items.Select(i => new { qty = i.Quantity, name = i.Name, price = i.Price })
         });
 
-    // Data the payment modal needs. Keyed by order id.
+    // Data the payment modal + discount overview need. Keyed by order id.
     var payData = Model.AllOrders.ToDictionary(o => o.Id, o => new
     {
         orderNumber = o.OrderNumber,
@@ -660,6 +969,9 @@
 }
 
 <script>
+    // Move modals out of the layout wrapper so nothing can clip or cover them
+    document.querySelectorAll('.panel-overlay, .order-details-panel, #pay-modal, #noshift-modal')
+    .forEach(el => document.body.appendChild(el));
     // ── HELPERS ────────────────────────────────────────────────────────────────
     const byId  = id => document.getElementById(id);
     const slug  = s => String(s ?? '').trim().toLowerCase().replace(/\s+/g, '-');
@@ -688,8 +1000,128 @@
         return el ? +el.id.replace('panel-', '') : null;
     }
     function syncScrollLock() {
-        const anyOpen = !!openPanelId() || !byId('pay-modal').hidden;
+        const anyOpen = !!openPanelId() || !byId('pay-modal').hidden || !byId('noshift-modal').hidden;
         document.body.style.overflow = anyOpen ? 'hidden' : '';
+    }
+
+    // ── TAKE-OUT: CUSTOMER TYPE CHOOSER IN THE ORDER PANEL ────────────────────
+    // Regular -> no discount, go straight to payment.
+    // Senior / PWD -> show ID fields and the "Verify & Apply" button.
+    function tkSelectType(id, type) {
+        const form = byId('tk-form-' + id);
+        if (!form) return;
+
+        const dtype = byId('tk-dtype-' + id);
+        if (dtype) dtype.value = type;
+
+        form.querySelectorAll('.tk-opt').forEach(b => {
+            const on = b.dataset.type === type;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+
+        const isRegular = type === 'Regular';
+        const fields = byId('tk-fields-' + id);
+        const note   = byId('tk-reg-' + id);
+        if (fields) {
+            fields.hidden = isRegular;
+            // disabled inputs are skipped by validation + submit, so Regular never gets blocked
+            fields.querySelectorAll('input').forEach(i => { i.disabled = isRegular; });
+        }
+        if (note) note.hidden = !isRegular;
+
+        const btn = byId('tk-submit-' + id);
+        if (btn) btn.textContent = `Verify & Apply 20% ${type === 'Senior' ? 'Senior' : 'PWD'} Discount`;
+    }
+
+    // ── TAKE-OUT: QUICK ACTIONS FROM THE ORDER CARD / DISCOUNT LIST ───────────
+    // Open the order panel on the right customer type and scroll to the ID fields.
+    function tkVerify(id, type) {
+        openPanel(id);
+        if (type === 'Senior' || type === 'PWD') tkSelectType(id, type);
+        setTimeout(() => byId(`discount-section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+    }
+
+    // Card row: Regular -> straight to payment, Senior/PWD -> verify ID first
+    function tkQuick(id, type) {
+        const row = byId('tk-quick-' + id);
+        if (row) row.querySelectorAll('.tk-quick-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+        if (type === 'Regular') openPayModal(id);
+        else tkVerify(id, type);
+    }
+
+    // ── DISCOUNT OVERVIEW SECTION ─────────────────────────────────────────────
+    let customerFilter = 'all';
+
+    // Click a count chip to show only that customer type in the order grid
+    function applyCustomerFilter(type) {
+        customerFilter = type;
+        document.querySelectorAll('.ds-chip').forEach(c => c.classList.toggle('active', c.dataset.ctf === type));
+        document.querySelectorAll('#orders-grid .order-card').forEach(card => {
+            const hide = type !== 'all' && card.dataset.customerType !== type;
+            card.classList.toggle('ct-hidden', hide);
+        });
+        checkEmptyState();
+    }
+
+    // "Verify ID" in the waiting list: take-out gets the chooser, dine-in keeps its own form
+    function verifyFromList(id) {
+        const d = PAY_DATA[id];
+        if (d && d.type === 'take-out') {
+            tkVerify(id, d.discountRequest);
+        } else {
+            openPanel(id);
+            setTimeout(() => byId(`discount-section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+        }
+    }
+
+    // Recompute counts from live statuses + the discount data loaded with the page
+    function refreshDiscountSection(orders) {
+        if (!byId('discount-overview')) return;
+
+        const custOf = d => d.discountType
+            ? d.discountType
+            : (d.discountRequest === 'PWD' || d.discountRequest === 'Senior') ? d.discountRequest : 'Regular';
+
+        const counts = { Regular: 0, Senior: 0, PWD: 0 };
+        let active = 0, given = 0;
+        const pending = [];
+
+        orders.forEach(o => {
+            const d = PAY_DATA[o.id];
+            if (!d || o.status === 'cancelled') return;
+
+            if (d.discountType) given += Number(d.discountAmount || 0);
+
+            if (isCompleted(o.status)) return;
+            active++;
+            const ct = custOf(d);
+            if (counts[ct] !== undefined) counts[ct]++;
+
+            if (o.status === 'Waiting Payment' && !d.discountType
+                && (d.discountRequest === 'PWD' || d.discountRequest === 'Senior')) {
+                pending.push({ id: o.id, d });
+            }
+        });
+
+        const set = (id, v) => { const el = byId(id); if (el) el.textContent = v; };
+        set('ds-all', active);
+        set('ds-regular', counts.Regular);
+        set('ds-senior', counts.Senior);
+        set('ds-pwd', counts.PWD);
+        set('ds-given', peso(given));
+        set('ds-pending-count', pending.length);
+
+        const box  = byId('ds-pending');
+        const list = byId('ds-pending-list');
+        if (box)  box.hidden = pending.length === 0;
+        if (list) {
+            list.innerHTML = pending.map(p => `
+                <div class="ds-item">
+                    <span><strong>#${esc(p.d.orderNumber)}</strong> · ${p.d.type === 'take-out' ? 'Take-Out' : 'Dine-In'} · requested ${esc(p.d.discountRequest)}</span>
+                    <button type="button" class="ds-item-btn" onclick="verifyFromList(${p.id})">Verify ID</button>
+                </div>`).join('');
+        }
     }
 
     // ── SEARCH ────────────────────────────────────────────────────────────────
@@ -769,8 +1201,11 @@
                 if (newStatus === 'printing') queueReceipt(order.id);
                 if (newStatus !== 'printing') byId(`print-ind-${order.id}`)?.remove();
 
-                // the quick "Mark as Paid" button only makes sense while waiting for payment
-                if (newStatus !== 'Waiting Payment') byId(`quick-pay-${order.id}`)?.remove();
+                // the quick "Mark as Paid" button and take-out type row only make sense while waiting for payment
+                if (newStatus !== 'Waiting Payment') {
+                    byId(`quick-pay-${order.id}`)?.remove();
+                    byId(`tk-quick-${order.id}`)?.remove();
+                }
 
                 // 1. card status badge + accent colour
                 if (card) {
@@ -828,9 +1263,12 @@
             set('hdr-ready',      readyCount);
             Object.entries(tabCounts).forEach(([tab, n]) => set(`tab-badge-${tab}`, n));
 
+            // discount overview (counts, discount given, waiting-for-ID list)
+            refreshDiscountSection(orders);
+
             // New order for this tab -> reload quietly, but never while someone is
             // in a panel, taking payment, or a receipt is printing.
-            const busy = !!openPanelId() || !byId('pay-modal').hidden || printBusy;
+            const busy = !!openPanelId() || !byId('pay-modal').hidden || !byId('noshift-modal').hidden || printBusy;
             if (needsReload && !HAS_SEARCH && !busy) location.reload();
 
         } catch (e) {
@@ -840,7 +1278,7 @@
 
     function checkEmptyState() {
         const grid  = byId('orders-grid');
-        const cards = grid ? grid.querySelectorAll('.order-card:not(.order-card-exit)') : [];
+        const cards = grid ? grid.querySelectorAll('.order-card:not(.order-card-exit):not(.ct-hidden)') : [];
         const empty = byId('empty-state');
         if (empty) empty.style.display = cards.length ? 'none' : '';
     }
@@ -922,6 +1360,11 @@
     const payInput = byId('pay-input');
     let payOrderId = null, payDueCents = 0, payReturnFocus = null;
 
+    // Take-out customer type state (dine-in never touches these)
+    let payIsTakeOut = false;
+    let payCustType  = 'Regular';
+    let payTypeLocked = false;
+
     const toCents = v => Math.round((parseFloat(v) || 0) * 100);
 
     function quickAmounts(dueCents) {
@@ -935,7 +1378,66 @@
         return [...out].sort((a, b) => a - b).slice(0, 4);
     }
 
+    // Take-out: Senior / PWD must be verified before payment can be confirmed
+    function payBlocked() {
+        if (!payIsTakeOut) return false;
+        const d = PAY_DATA[payOrderId];
+        return payCustType !== 'Regular' && !(d && d.discountType);
+    }
+
+    // Warning box. Dine-in keeps the original (non-blocking) warning.
+    function refreshPayWarn() {
+        const d = PAY_DATA[payOrderId];
+        if (!d) return;
+        const warn = byId('pay-warn');
+        const text = byId('pay-warn-text');
+
+        if (payIsTakeOut) {
+            if (payBlocked()) {
+                text.textContent = `${payCustType} selected. Verify the customer's ID before taking payment.`;
+                warn.hidden = false;
+            } else {
+                warn.hidden = true;
+            }
+            return;
+        }
+
+        if (!d.discountType && (d.discountRequest === 'PWD' || d.discountRequest === 'Senior')) {
+            text.textContent = `Customer requested a ${d.discountRequest} discount and the ID isn't verified yet.`;
+            warn.hidden = false;
+        } else {
+            warn.hidden = true;
+        }
+    }
+
+    function renderPayType() {
+        byId('pay-type').querySelectorAll('.tk-opt').forEach(b => {
+            const on = b.dataset.type === payCustType;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-checked', on ? 'true' : 'false');
+            b.disabled = payTypeLocked;
+        });
+        const hint = byId('pay-type-hint');
+        if (payTypeLocked) {
+            hint.textContent = `${payCustType} discount already verified. Remove it in the order panel to change the customer type.`;
+            hint.hidden = false;
+        } else {
+            hint.hidden = true;
+        }
+    }
+
+    function setPayType(type) {
+        if (payTypeLocked) return;
+        payCustType = type;
+        renderPayType();
+        refreshPayWarn();
+        onPayInput(true);   // re-evaluates the Confirm button
+    }
+
     function openPayModal(id) {
+        // No open shift -> show the popup instead of the payment dialog
+        if (!HAS_OPEN_SHIFT) { showNoShiftModal(); return; }
+
         const d = PAY_DATA[id];
         if (!d) { location.reload(); return; }
 
@@ -962,13 +1464,20 @@
         } else {
             note.hidden = true;
         }
-        const warn = byId('pay-warn');
-        if (!d.discountType && (d.discountRequest === 'PWD' || d.discountRequest === 'Senior')) {
-            byId('pay-warn-text').textContent = `Customer requested a ${d.discountRequest} discount and the ID isn't verified yet.`;
-            warn.hidden = false;
+
+        // take-out: customer type chooser (dine-in: hidden, behaviour unchanged)
+        payIsTakeOut = d.type === 'take-out';
+        byId('pay-type').hidden = !payIsTakeOut;
+        if (payIsTakeOut) {
+            payTypeLocked = !!d.discountType;
+            payCustType   = d.discountType
+                || ((d.discountRequest === 'PWD' || d.discountRequest === 'Senior') ? d.discountRequest : 'Regular');
+            renderPayType();
         } else {
-            warn.hidden = true;
+            payTypeLocked = false;
+            payCustType   = 'Regular';
         }
+        refreshPayWarn();
 
         // quick-amount chips
         const chips = byId('pay-chips');
@@ -1001,9 +1510,13 @@
     }
 
     function verifyDiscountFirst() {
-        const id = payOrderId;
+        const id   = payOrderId;
+        const type = payCustType;
+        const isTk = payIsTakeOut;
         closePayModal();
         openPanel(id);
+        // take-out: make sure the panel chooser matches what the cashier picked in the modal
+        if (isTk && (type === 'Senior' || type === 'PWD')) tkSelectType(id, type);
         setTimeout(() => byId(`discount-section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
     }
 
@@ -1042,7 +1555,7 @@
             hint.textContent  = `Received ${peso(t / 100)}`;
         }
         box.dataset.state = state;
-        byId('pay-confirm').disabled = !(has && t >= payDueCents);
+        byId('pay-confirm').disabled = !(has && t >= payDueCents) || payBlocked();
 
         document.querySelectorAll('#pay-chips .pay-chip').forEach(c =>
             c.classList.toggle('active', has && +c.dataset.cents === t));
@@ -1051,7 +1564,7 @@
     function submitPayment(e) {
         const has = payInput.value.trim() !== '';
         const t   = toCents(payInput.value);
-        if (!has || t < payDueCents) { e.preventDefault(); payInput.focus(); return false; }
+        if (!has || t < payDueCents || payBlocked()) { e.preventDefault(); payInput.focus(); return false; }
 
         byId('pay-f-tendered').value = (t / 100).toFixed(2);
         byId('pay-f-change').value   = ((t - payDueCents) / 100).toFixed(2);
@@ -1059,9 +1572,10 @@
         return true;
     }
 
-    // Esc closes the payment modal first, then any open panel
+    // Esc closes the no-shift popup first, then the payment modal, then any open panel
     document.addEventListener('keydown', e => {
         if (e.key !== 'Escape') return;
+        if (!byId('noshift-modal').hidden) { closeNoShiftModal(); return; }
         if (!payModal.hidden) { closePayModal(); return; }
         const id = openPanelId();
         if (id) closePanel(id);
@@ -1284,6 +1798,23 @@
         card.remove();
         return ok;
     }
+
+    // ══════════════ NO OPEN SHIFT POPUP ══════════════
+    const HAS_OPEN_SHIFT = @Json.Serialize(Model.HasOpenShift);
+    const NO_SHIFT_FLAG  = @(TempData["NoShift"] != null ? "true" : "false");
+
+    function showNoShiftModal() {
+        if (!payModal.hidden) closePayModal();
+        byId('noshift-modal').hidden = false;
+        syncScrollLock();
+    }
+    function closeNoShiftModal() {
+        byId('noshift-modal').hidden = true;
+        syncScrollLock();
+    }
+
+    // The server rejected a payment because there was no open shift
+    if (NO_SHIFT_FLAG) showNoShiftModal();
 
     // ── INIT ──────────────────────────────────────────────────────────────────
     PRINTING_IDS.forEach(queueReceipt);

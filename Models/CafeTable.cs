@@ -18,9 +18,12 @@ namespace OmsCafe.Models
         [MaxLength(20)]
         public string Status { get; set; } = "Available";
 
-        public DateTime? CreatedAt { get; set; } = DateTime.Now;
+        public DateTime? CreatedAt { get; set; } = PhTime.Now;
 
         // In your Table entity / DB
         public string? QRToken { get; set; }   // ← must exist
+
+        public bool IsArchived { get; set; } = false;
+        public DateTime? ArchivedAt { get; set; }
     }
 }

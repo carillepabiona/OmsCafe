@@ -63,14 +63,14 @@ namespace OmsCafe.Pages.Cashier
 
         private IQueryable<Payment> ApplyToday(IQueryable<Payment> q)
         {
-            var today = DateTime.Today;
+            var today = PhTime.Today;
             RangeLabel = today.ToString("MMMM dd, yyyy");
             return q.Where(p => p.PaidAt.Date == today);
         }
 
         private IQueryable<Payment> ApplyThisWeek(IQueryable<Payment> q)
         {
-            var start = DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek);
+            var start = PhTime.Today.AddDays(-(int)PhTime.Today.DayOfWeek);
             var end = start.AddDays(7);
             RangeLabel = $"{start:MMM dd} – {end.AddDays(-1):MMM dd, yyyy}";
             return q.Where(p => p.PaidAt >= start && p.PaidAt < end);
@@ -78,7 +78,7 @@ namespace OmsCafe.Pages.Cashier
 
         private IQueryable<Payment> ApplyThisMonth(IQueryable<Payment> q)
         {
-            var start = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+            var start = new DateTime(PhTime.Today.Year, PhTime.Today.Month, 1);
             var end = start.AddMonths(1);
             RangeLabel = start.ToString("MMMM yyyy");
             return q.Where(p => p.PaidAt >= start && p.PaidAt < end);

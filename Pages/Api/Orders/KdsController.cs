@@ -101,7 +101,7 @@ namespace OmsCafe.Pages.Api
                     status = o.Status,
                     total = o.Total,
                     itemCount = o.Items.Count,
-                    elapsedTime = (int)(DateTime.UtcNow - o.CreatedAt).TotalMinutes + " mins",
+                    elapsedTime = (int)(PhTime.Now - o.CreatedAt).TotalMinutes + " mins",
 
                     // ── Discount ──
                     discountRequest = o.DiscountRequest ?? "None",

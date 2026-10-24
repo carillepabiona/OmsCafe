@@ -1,4 +1,4 @@
-
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -16,8 +16,8 @@ namespace OmsCafe.Pages.Cashier
             _db = db;
         }
 
-        // PWD / Senior: VAT-exempt prices + 20% discount
-        private const decimal VatRate = 0.12m;
+        // PWD / Senior: flat 20% off the listed price (no VAT removal).
+        // Keep this the same as DiscountRate in PosOrdersController and Pos.cshtml.
         private const decimal PwdSeniorRate = 0.20m;
 
         [BindProperty(SupportsGet = true)]
@@ -28,6 +28,26 @@ namespace OmsCafe.Pages.Cashier
 
         [BindProperty(SupportsGet = true)]
         public string SelectedTab { get; set; } = "all";
+
+        // ── Shift check ──────────────────────────────────────────────
+
+        // True when the logged-in cashier has an open shift.
+        // The view uses this to show the "No open shift" popup.
+        public bool HasOpenShift => CashierHasOpenShift();
+
+        private bool CashierHasOpenShift()
+        {
+            return GetOpenShift() != null;
+        }
+
+        private Shift? GetOpenShift()
+        {
+            if (!Guid.TryParse(HttpContext.Session.GetString("UserId"), out var cashierId))
+                return null;
+
+            return _db.Shifts.FirstOrDefault(s =>
+                s.CashierId == cashierId && s.Status == ShiftStatus.Open);
+        }
 
         // ── View Models ──────────────────────────────────────────────
 
@@ -153,29 +173,37 @@ namespace OmsCafe.Pages.Cashier
                 }
                 else
                 {
-                    // Validate cash received on the server.
-                    if (!amountTendered.HasValue
-                        || amountTendered.Value < 0m)
+                    // ── A payment must belong to an open shift ──
+                    // No open shift: show the popup on the Orders page
+                    // (it has a button that goes to Close Shift).
+                    var shift = GetOpenShift();
+                    if (shift == null)
                     {
-                        return BadRequest(
-                            "Invalid cash received amount.");
+                        TempData["NoShift"] = true;
+                        return RedirectToPage(new
+                        {
+                            selectedTab,
+                            selectedFilter,
+                            searchQuery = SearchQuery
+                        });
                     }
 
-                    decimal cashReceived =
-                        Math.Round(amountTendered.Value, 2);
+                    // Validate cash received on the server.
+                    if (!amountTendered.HasValue || amountTendered.Value < 0m)
+                    {
+                        return BadRequest("Invalid cash received amount.");
+                    }
 
-                    decimal orderTotal =
-                        Math.Round(order.Total, 2);
+                    decimal cashReceived = Math.Round(amountTendered.Value, 2);
+                    decimal orderTotal = Math.Round(order.Total, 2);
 
                     if (cashReceived < orderTotal)
                     {
-                        return BadRequest(
-                            "Cash received is less than the order total.");
+                        return BadRequest("Cash received is less than the order total.");
                     }
 
                     // Always calculate change using the database total.
-                    decimal calculatedChange =
-                        Math.Round(cashReceived - orderTotal, 2);
+                    decimal calculatedChange = Math.Round(cashReceived - orderTotal, 2);
 
                     var payment = new Payment
                     {
@@ -185,11 +213,12 @@ namespace OmsCafe.Pages.Cashier
                         CustomerName = order.CustomerName ?? "",
                         Type = order.Type ?? "",
                         Amount = orderTotal,
-                        PaidAt = DateTime.Now,
+                        PaidAt = PhTime.Now,
 
-                        // New saved payment values
                         CashReceived = cashReceived,
-                        ChangeGiven = calculatedChange
+                        ChangeGiven = calculatedChange,
+
+                        ShiftId = shift.Id
                     };
 
                     _db.Payments.Add(payment);
@@ -200,7 +229,8 @@ namespace OmsCafe.Pages.Cashier
             }
             else
             {
-                // Preserve the normal status update behavior.
+                // Normal status update (accept, ready, served, cancel).
+                // These don't take money, so they don't need an open shift.
                 order.Status = newStatus;
             }
 
@@ -245,19 +275,18 @@ namespace OmsCafe.Pages.Cashier
                 decimal gross =
                     order.Total + (order.DiscountAmount ?? 0m);
 
-                decimal vatExclusive =
-                    Math.Round(gross / (1 + VatRate), 2);
-
+                // Flat 20% off the listed price (same as POS)
                 decimal final =
                     Math.Round(
-                        vatExclusive * (1 - PwdSeniorRate), 2);
+                        gross * (1 - PwdSeniorRate), 2,
+                        MidpointRounding.AwayFromZero);
 
                 order.Total = final;
                 order.DiscountAmount = gross - final;
                 order.DiscountType = discountType;
                 order.DiscountIdNumber = idNumber.Trim();
                 order.DiscountIdName = idName.Trim();
-                order.DiscountVerifiedAt = DateTime.Now;
+                order.DiscountVerifiedAt = PhTime.Now;
                 order.DiscountVerifiedBy =
                     User.Identity?.Name ?? "cashier";
 
@@ -353,7 +382,7 @@ namespace OmsCafe.Pages.Cashier
 
             AllOrders = dbOrders.Select(o =>
             {
-                var elapsed = DateTime.UtcNow - o.CreatedAt;
+                var elapsed = PhTime.Now - o.CreatedAt;
 
                 var elapsedStr = elapsed.TotalMinutes < 60
                     ? $"{(int)elapsed.TotalMinutes} mins"

@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -21,152 +20,148 @@ namespace OmsCafe.Pages.Cashier
             _db = db;
         }
 
+        // Set to true ONLY if your code saves CreatedAt with PhTime.Now.
+        private const bool CreatedAtIsUtc = false;
+
+        private static DateTime Today => PhTime.Today;
+
         // =========================================================
         // FILTERS
         // =========================================================
 
-        [BindProperty(SupportsGet = true)]
-        public string? SearchQuery { get; set; }
-
-        [BindProperty(SupportsGet = true)]
-        public string DateFilter { get; set; } = "today";
-
-        [BindProperty(SupportsGet = true)]
-        public string? WeekOf { get; set; }
-
-        [BindProperty(SupportsGet = true)]
-        public string? MonthOf { get; set; }
-
-        [BindProperty(SupportsGet = true)]
-        public string TypeFilter { get; set; } = "all";
-
-        [BindProperty(SupportsGet = true)]
-        public string StatusFilter { get; set; } = "all";
+        [BindProperty(SupportsGet = true)] public string? SearchQuery { get; set; }
+        [BindProperty(SupportsGet = true)] public string DateFilter { get; set; } = "today";
+        [BindProperty(SupportsGet = true)] public string? WeekOf { get; set; }
+        [BindProperty(SupportsGet = true)] public string? MonthOf { get; set; }
+        [BindProperty(SupportsGet = true)] public string TypeFilter { get; set; } = "all";
+        [BindProperty(SupportsGet = true)] public string StatusFilter { get; set; } = "all";
 
         // =========================================================
         // OUTPUT / SUMMARY
         // =========================================================
 
         public List<TransactionView> Transactions { get; set; } = new();
-
         public string RangeLabel { get; private set; } = "";
 
-        public int TotalOrders => Transactions.Count;
+        // Cancelled orders stay in the list but are not counted.
+        public int TotalOrders => Transactions.Count(t => !IsCancelled(t.Status));
 
-        // Only count orders whose status indicates payment was completed.
-        // Unpaid orders remain visible but are excluded from this figure.
+        // Revenue = orders that have a payment record and are not cancelled.
         public decimal TotalRevenue => Transactions
-            .Where(t => IsPaidStatus(t.Status))
+            .Where(t => t.IsPaid && !IsCancelled(t.Status))
             .Sum(t => t.Total);
 
         public int DineInCount => Transactions.Count(t =>
-            string.Equals(t.Type, "dine-in",
-                StringComparison.OrdinalIgnoreCase));
+            !IsCancelled(t.Status) &&
+            string.Equals(t.Type, "dine-in", StringComparison.OrdinalIgnoreCase));
 
         public int TakeOutCount => Transactions.Count(t =>
-            string.Equals(t.Type, "take-out",
-                StringComparison.OrdinalIgnoreCase));
+            !IsCancelled(t.Status) &&
+            string.Equals(t.Type, "take-out", StringComparison.OrdinalIgnoreCase));
 
-        private static bool IsPaidStatus(string? status)
-        {
-            return string.Equals(status, "paid",
-                       StringComparison.OrdinalIgnoreCase)
-                || string.Equals(status, "served",
-                       StringComparison.OrdinalIgnoreCase)
-                || string.Equals(status, "completed",
-                       StringComparison.OrdinalIgnoreCase);
-        }
+        private static bool IsCancelled(string? status) =>
+            string.Equals(status, "cancelled", StringComparison.OrdinalIgnoreCase);
 
         // =========================================================
-        // TRANSACTION VIEW MODEL
+        // VIEW MODELS
         // =========================================================
 
         public class TransactionView
         {
             public int Id { get; set; }
-
             public string OrderNumber { get; set; } = "";
-
             public string CustomerName { get; set; } = "";
-
             public string Type { get; set; } = "";
-
             public string TableNumber { get; set; } = "";
-
             public string Status { get; set; } = "";
-
             public string PaymentMethod { get; set; } = "";
-
             public decimal Total { get; set; }
-
             public DateTime CreatedAt { get; set; }
-
             public DateTime? ServedAt { get; set; }
 
-            // These fields are shown in the Razor page.
-            // PaidAt must be populated from an actual payment record
-            // once its schema and relationship are confirmed.
+            public bool IsPaid { get; set; }
             public DateTime? PaidAt { get; set; }
 
             public int? EstimatedMinutes { get; set; }
-
             public string SpecialInstructions { get; set; } = "";
 
-            // Discount information
             public string? DiscountType { get; set; }
-
             public decimal DiscountAmount { get; set; }
-
             public string? DiscountIdName { get; set; }
-
             public string? DiscountIdNumber { get; set; }
-
             public DateTime? DiscountVerifiedAt { get; set; }
-
             public string? DiscountVerifiedBy { get; set; }
 
             public string ElapsedTime { get; set; } = "";
-
             public List<ItemView> Items { get; set; } = new();
         }
-
-        // =========================================================
-        // ITEM VIEW MODEL
-        // =========================================================
 
         public class ItemView
         {
             public string Name { get; set; } = "";
-
             public int Quantity { get; set; }
-
             public decimal Price { get; set; }
-
             public string Customization { get; set; } = "";
-
             public string SpecialInstructions { get; set; } = "";
 
-            public string? ImageBase64 { get; set; }
-
-            public string? ImageMimeType { get; set; }
+            // Images are NOT embedded any more. The page asks for them
+            // one by one (and only when the row is opened) via OnGetImageAsync.
+            public string MenuItemId { get; set; } = "";
+            public bool HasImage { get; set; }
         }
 
         // =========================================================
-        // LOAD TRANSACTION HISTORY
+        // IMAGE ENDPOINT  (/Cashier/TransactionHistory?handler=Image&id=...)
+        // =========================================================
+
+        public async Task<IActionResult> OnGetImageAsync(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+                return NotFound();
+
+            var img = await _db.MenuItems
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(m => m.Id.ToString() == id)
+                .Select(m => new { m.ImageBase64, m.ImageMimeType })
+                .FirstOrDefaultAsync();
+
+            if (img == null || string.IsNullOrEmpty(img.ImageBase64))
+                return NotFound();
+
+            byte[] bytes;
+            try
+            {
+                bytes = Convert.FromBase64String(img.ImageBase64);
+            }
+            catch (FormatException)
+            {
+                return NotFound();
+            }
+
+            // The Admin/Cashier guard in Program.cs sets "no-store" for these
+            // paths. Override it here so the browser can cache the image.
+            Response.Headers.Remove("Pragma");
+            Response.Headers["Cache-Control"] = "private, max-age=3600";
+
+            return File(bytes,
+                string.IsNullOrWhiteSpace(img.ImageMimeType) ? "image/png" : img.ImageMimeType);
+        }
+
+        // =========================================================
+        // LOAD
         // =========================================================
 
         public async Task OnGetAsync()
         {
-            // Include ALL recorded orders, including Waiting Payment.
-            // Do not restrict the history to completed transactions.
+            // Defensive: if a duplicate query value ever arrives ("all,today"), use the first.
+            DateFilter = (DateFilter ?? "today").Split(',')[0].Trim().ToLowerInvariant();
+
             IQueryable<Order> query = _db.Orders
                 .AsNoTracking()
                 .Include(o => o.Items);
 
-            // -----------------------------------------------------
-            // DATE FILTER
-            // -----------------------------------------------------
-
+            // Date filter
             query = DateFilter switch
             {
                 "today" => ApplyToday(query),
@@ -178,123 +173,84 @@ namespace OmsCafe.Pages.Cashier
                 _ => ApplyToday(query)
             };
 
-            // -----------------------------------------------------
-            // ORDER TYPE FILTER
-            // -----------------------------------------------------
-
-            if (!string.IsNullOrWhiteSpace(TypeFilter) &&
-                TypeFilter != "all")
+            // Type filter
+            if (!string.IsNullOrWhiteSpace(TypeFilter) && TypeFilter != "all")
             {
                 var selectedType = TypeFilter.Trim().ToLowerInvariant();
-
-                query = query.Where(o =>
-                    o.Type != null &&
-                    o.Type.ToLower() == selectedType);
+                query = query.Where(o => o.Type != null && o.Type.ToLower() == selectedType);
             }
 
-            // -----------------------------------------------------
-            // ORDER STATUS FILTER
-            // -----------------------------------------------------
-
+            // Status filter
             if (!string.IsNullOrWhiteSpace(StatusFilter) &&
-                !string.Equals(StatusFilter, "all",
-                    StringComparison.OrdinalIgnoreCase))
+                !string.Equals(StatusFilter, "all", StringComparison.OrdinalIgnoreCase))
             {
                 var selectedStatus = StatusFilter.Trim().ToLowerInvariant();
-
-                query = query.Where(o =>
-                    o.Status != null &&
-                    o.Status.ToLower() == selectedStatus);
+                query = query.Where(o => o.Status != null && o.Status.ToLower() == selectedStatus);
             }
 
-            // -----------------------------------------------------
-            // SEARCH BY ORDER, CUSTOMER, TABLE OR ITEM
-            // -----------------------------------------------------
-
+            // Search
             if (!string.IsNullOrWhiteSpace(SearchQuery))
             {
                 var search = SearchQuery.Trim().ToLowerInvariant();
-
                 query = query.Where(o =>
-                    (o.OrderNumber != null &&
-                     o.OrderNumber.ToLower().Contains(search))
-                    ||
-                    (o.CustomerName != null &&
-                     o.CustomerName.ToLower().Contains(search))
-                    ||
-                    (o.TableNumber != null &&
-                     o.TableNumber.ToLower().Contains(search))
-                    ||
-                    (o.Items != null &&
-                     o.Items.Any(i =>
-                         i.Name != null &&
-                         i.Name.ToLower().Contains(search)))
-                );
+                    (o.OrderNumber != null && o.OrderNumber.ToLower().Contains(search)) ||
+                    (o.CustomerName != null && o.CustomerName.ToLower().Contains(search)) ||
+                    (o.TableNumber != null && o.TableNumber.ToLower().Contains(search)) ||
+                    o.Items.Any(i => i.Name != null && i.Name.ToLower().Contains(search)));
             }
-
-            // -----------------------------------------------------
-            // EXECUTE QUERY
-            // -----------------------------------------------------
 
             var orders = await query
                 .OrderByDescending(o => o.CreatedAt)
                 .ThenByDescending(o => o.Id)
                 .ToListAsync();
 
-            // -----------------------------------------------------
-            // MENU ITEM IMAGES
-            // -----------------------------------------------------
-
-            var menuItemImages = await _db.MenuItems
+            // Payments for these orders (PaidAt + IsPaid).
+            // Assumes Payment.OrderId is the same type as Order.Id (int).
+            var orderIds = orders.Select(o => o.Id).ToList();
+            var payments = await _db.Payments
                 .AsNoTracking()
-                .Select(m => new
-                {
-                    m.Id,
-                    m.ImageBase64,
-                    m.ImageMimeType
-                })
-                .ToDictionaryAsync(
-                    m => m.Id.ToString(),
-                    m => new
-                    {
-                        m.ImageBase64,
-                        m.ImageMimeType
-                    });
+                .Where(p => orderIds.Contains(p.OrderId))
+                .Select(p => new { p.OrderId, p.PaidAt })
+                .ToListAsync();
 
-            // -----------------------------------------------------
-            // MAP DATABASE ORDERS TO VIEW MODELS
-            // -----------------------------------------------------
+            var paidAtByOrder = payments
+                .GroupBy(p => p.OrderId)
+                .ToDictionary(g => g.Key, g => g.Max(p => p.PaidAt));
 
+            // Which menu items have an image? We only fetch the IDs here,
+            // NOT the base64 data (that was the slow part).
+            var idsWithImage = (await _db.MenuItems
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(m => m.ImageBase64 != null && m.ImageBase64 != "")
+                    .Select(m => m.Id)
+                    .ToListAsync())
+                .Select(id => id.ToString())
+                .ToHashSet();
+
+            // Map to view models
             Transactions = orders.Select(o =>
             {
-                var endTime = o.ServedAt ?? DateTime.Now;
+                var endTime = o.ServedAt ?? PhTime.Now;
                 var elapsed = endTime - o.CreatedAt;
-
-                // Prevent negative elapsed times from being displayed.
-                if (elapsed < TimeSpan.Zero)
-                {
-                    elapsed = TimeSpan.Zero;
-                }
+                if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
 
                 var items = o.Items.Select(i =>
                 {
-                    menuItemImages.TryGetValue(
-                        i.MenuItemId ?? "",
-                        out var image);
-
+                    var menuItemId = i.MenuItemId ?? "";
                     return new ItemView
                     {
                         Name = i.Name ?? "",
                         Quantity = i.Quantity,
                         Price = i.Price,
                         Customization = i.Customization ?? "",
-                        SpecialInstructions =
-                            i.SpecialInstructions ?? "",
-
-                        ImageBase64 = image?.ImageBase64,
-                        ImageMimeType = image?.ImageMimeType
+                        SpecialInstructions = i.SpecialInstructions ?? "",
+                        MenuItemId = menuItemId,
+                        HasImage = menuItemId != "" && idsWithImage.Contains(menuItemId)
                     };
                 }).ToList();
+
+                var isPaid = paidAtByOrder.TryGetValue(o.Id, out var paidAt);
 
                 return new TransactionView
                 {
@@ -306,20 +262,14 @@ namespace OmsCafe.Pages.Cashier
                     Status = o.Status ?? "",
                     PaymentMethod = o.PaymentMethod ?? "",
                     Total = o.Total,
-
                     CreatedAt = o.CreatedAt,
                     ServedAt = o.ServedAt,
 
-                    // Do not substitute CreatedAt for PaidAt.
-                    // A real payment timestamp needs to be mapped
-                    // from the actual payment record.
-
-                    PaidAt = null,
+                    IsPaid = isPaid,
+                    PaidAt = isPaid ? paidAt : null,
 
                     EstimatedMinutes = o.EstimatedMinutes,
-
-                    SpecialInstructions =
-                        o.SpecialInstructions ?? "",
+                    SpecialInstructions = o.SpecialInstructions ?? "",
 
                     DiscountType = o.DiscountType,
                     DiscountAmount = o.DiscountAmount ?? 0m,
@@ -343,82 +293,50 @@ namespace OmsCafe.Pages.Cashier
 
         private IQueryable<Order> ApplyToday(IQueryable<Order> query)
         {
-            var today = DateTime.Today;
+            var today = Today;
             var tomorrow = today.AddDays(1);
-
             RangeLabel = today.ToString("MMMM dd, yyyy");
-
-            return query.Where(o =>
-                o.CreatedAt >= today &&
-                o.CreatedAt < tomorrow);
+            return query.Where(o => o.CreatedAt >= today && o.CreatedAt < tomorrow);
         }
 
         private IQueryable<Order> ApplyThisWeek(IQueryable<Order> query)
         {
             // Sunday-start calendar week.
-            var today = DateTime.Today;
+            var today = Today;
             var start = today.AddDays(-(int)today.DayOfWeek);
             var end = start.AddDays(7);
-
-            RangeLabel =
-                $"{start:MMM dd} – {end.AddDays(-1):MMM dd, yyyy}";
-
-            return query.Where(o =>
-                o.CreatedAt >= start &&
-                o.CreatedAt < end);
+            RangeLabel = $"{start:MMM dd} – {end.AddDays(-1):MMM dd, yyyy}";
+            return query.Where(o => o.CreatedAt >= start && o.CreatedAt < end);
         }
 
         private IQueryable<Order> ApplyThisMonth(IQueryable<Order> query)
         {
-            var today = DateTime.Today;
+            var today = Today;
             var start = new DateTime(today.Year, today.Month, 1);
             var end = start.AddMonths(1);
-
             RangeLabel = start.ToString("MMMM yyyy");
-
-            return query.Where(o =>
-                o.CreatedAt >= start &&
-                o.CreatedAt < end);
+            return query.Where(o => o.CreatedAt >= start && o.CreatedAt < end);
         }
 
         private IQueryable<Order> ApplyPickedWeek(IQueryable<Order> query)
         {
-            if (!string.IsNullOrWhiteSpace(WeekOf) &&
-                DateTime.TryParseExact(
-                    WeekOf + "-1",
-                    "yyyy-'W'ww-d",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out _))
+            // <input type="week"> sends e.g. "2026-W42"
+            if (!string.IsNullOrWhiteSpace(WeekOf))
             {
-                // The input type="week" normally supplies yyyy-Www.
-                // Use ISOWeek for correct ISO week boundaries.
                 var parts = WeekOf.Split("-W");
-
                 if (parts.Length == 2 &&
                     int.TryParse(parts[0], out var year) &&
                     int.TryParse(parts[1], out var week) &&
-                    week >= 1 && week <= 53 &&
-                    year >= 1 && year <= 9998)
+                    week >= 1 && week <= 53 && year >= 1 && year <= 9998)
                 {
                     try
                     {
-                        var monday = ISOWeek.ToDateTime(
-                            year, week, DayOfWeek.Monday);
-
-                        var sunday = monday.AddDays(7);
-
-                        RangeLabel =
-                            $"Week of {monday:MMM dd} – {sunday.AddDays(-1):MMM dd, yyyy}";
-
-                        return query.Where(o =>
-                            o.CreatedAt >= monday &&
-                            o.CreatedAt < sunday);
+                        var monday = ISOWeek.ToDateTime(year, week, DayOfWeek.Monday);
+                        var end = monday.AddDays(7);
+                        RangeLabel = $"Week of {monday:MMM dd} – {end.AddDays(-1):MMM dd, yyyy}";
+                        return query.Where(o => o.CreatedAt >= monday && o.CreatedAt < end);
                     }
-                    catch (ArgumentOutOfRangeException)
-                    {
-                        // Invalid ISO week; leave query unchanged.
-                    }
+                    catch (ArgumentOutOfRangeException) { /* fall through */ }
                 }
             }
 
@@ -429,25 +347,13 @@ namespace OmsCafe.Pages.Cashier
         private IQueryable<Order> ApplyPickedMonth(IQueryable<Order> query)
         {
             if (!string.IsNullOrWhiteSpace(MonthOf) &&
-                DateTime.TryParseExact(
-                    MonthOf,
-                    "yyyy-MM",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out var selectedMonth))
+                DateTime.TryParseExact(MonthOf, "yyyy-MM", CultureInfo.InvariantCulture,
+                                       DateTimeStyles.None, out var selected))
             {
-                var start = new DateTime(
-                    selectedMonth.Year,
-                    selectedMonth.Month,
-                    1);
-
+                var start = new DateTime(selected.Year, selected.Month, 1);
                 var end = start.AddMonths(1);
-
                 RangeLabel = start.ToString("MMMM yyyy");
-
-                return query.Where(o =>
-                    o.CreatedAt >= start &&
-                    o.CreatedAt < end);
+                return query.Where(o => o.CreatedAt >= start && o.CreatedAt < end);
             }
 
             RangeLabel = "All dates (invalid month selection)";

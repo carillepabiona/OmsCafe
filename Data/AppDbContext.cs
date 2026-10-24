@@ -28,6 +28,10 @@ namespace OmsCafe.Data
 
         public DbSet<Payment> Payments { get; set; }
 
+        public DbSet<Shift> Shifts { get; set; }
+        public DbSet<ShiftClosingReport> ShiftClosingReports { get; set; }
+        public DbSet<PasswordResetRequest> PasswordResetRequests => Set<PasswordResetRequest>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // MenuItemCustomization composite key
@@ -88,6 +92,28 @@ namespace OmsCafe.Data
                 .HasQueryFilter(c => !c.IsDeleted);
 
             modelBuilder.Entity<StaffNotification>().ToTable("StaffNotifications");
+
+
+            modelBuilder.Entity<Shift>().Property(s => s.OpeningFloat).HasColumnType("decimal(10,2)");
+
+            modelBuilder.Entity<Shift>()
+                .HasOne(s => s.Report).WithOne(r => r.Shift)
+                .HasForeignKey<ShiftClosingReport>(r => r.ShiftId);
+
+            // DB-level guarantee: only one open shift per cashier
+            modelBuilder.Entity<Shift>()
+                .HasIndex(s => s.CashierId)
+                .HasFilter("[Status] = 'Open'")
+                .IsUnique();
+
+            modelBuilder.Entity<ShiftClosingReport>(e =>
+            {
+                e.Property(r => r.ExpectedCash).HasColumnType("decimal(10,2)");
+                e.Property(r => r.ActualCash).HasColumnType("decimal(10,2)");
+                e.Property(r => r.Variance).HasColumnType("decimal(10,2)");
+            });
+
+            modelBuilder.Entity<Payment>().HasIndex(p => p.ShiftId);
         }
     }
 
