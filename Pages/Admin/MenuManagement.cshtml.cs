@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,24 @@ namespace OmsCafe.Pages.Admin
         // Editing an item does NOT restart the count (only CreatedAt is used).
         public int NewItemDays { get; } = 7;
 
+        // Server-side limits. KEEP IN SYNC with the data-max / data-min attributes in MenuManagement.cshtml.
+        private const int MaxItemName = 60;
+        private const int MaxItemDescription = 250;
+        private const int MaxCategoryName = 40;
+        private const int MaxCategoryDescription = 120;
+        private const int MaxCustomizationName = 40;
+        private const int MaxOptionLabel = 40;
+        private const int MaxAddonName = 40;
+        private const int MaxAddonCategory = 30;
+        private const decimal MaxItemPrice = 99999.99m;
+        private const decimal MaxAddonPrice = 9999.99m;
+        private const long MaxImageBytes = 5 * 1024 * 1024;
+
+        private static readonly Regex NamePattern =
+            new(@"^[\p{L}\p{N} .,'’&()+/\-]+$", RegexOptions.Compiled);
+        private static readonly Regex HexColor =
+            new(@"^#[0-9a-fA-F]{6}$", RegexOptions.Compiled);
+
         // ── Page State ─────────────────────────────────────────────
         [BindProperty(SupportsGet = true)]
         public string ActiveTab { get; set; } = "items";
@@ -26,6 +45,52 @@ namespace OmsCafe.Pages.Admin
         public List<CategoryViewModel> Categories { get; set; } = new();
         public List<CustomizationViewModel> Customizations { get; set; } = new();
         public List<AddonViewModel> Addons { get; set; } = new();
+
+        // ── Validation helpers ─────────────────────────────────────
+        private IActionResult Fail(string message, string tab)
+        {
+            TempData["Error"] = message;
+            return RedirectToPage(new { activeTab = tab });
+        }
+
+        private static string? CheckName(string? value, string label, int max, bool required = true)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return required ? $"{label} is required." : null;
+            if (value.Length > max)
+                return $"{label} must be {max} characters or fewer.";
+            if (!NamePattern.IsMatch(value) || !value.Any(char.IsLetterOrDigit))
+                return $"{label} contains invalid characters. Use letters, numbers and basic punctuation only.";
+            return null;
+        }
+
+        private static string? CheckMoney(decimal value, string label, decimal min, decimal max)
+        {
+            if (decimal.Round(value, 2) != value)
+                return $"{label} can have at most 2 decimal places.";
+            if (value < min)
+                return min == 0 ? $"{label} cannot be negative." : $"{label} must be at least ₱{min:0.00}.";
+            if (value > max)
+                return $"{label} cannot be more than ₱{max:N2}.";
+            return null;
+        }
+
+        private static string? CheckTimes(string? from, string? until, out TimeOnly fromTime, out TimeOnly untilTime)
+        {
+            fromTime = default;
+            untilTime = default;
+
+            if (!TimeSpan.TryParse(from, out var f) || !TimeSpan.TryParse(until, out var u))
+                return "Enter a valid start and end time.";
+            if (f < TimeSpan.Zero || f >= TimeSpan.FromDays(1) || u < TimeSpan.Zero || u >= TimeSpan.FromDays(1))
+                return "Enter a valid start and end time.";
+            if (f == u)
+                return "Start and end time cannot be the same.";
+
+            fromTime = TimeOnly.FromTimeSpan(f);
+            untilTime = TimeOnly.FromTimeSpan(u);
+            return null;
+        }
 
         // ── GET: page ──────────────────────────────────────────────
         public async Task OnGetAsync(string? activeTab = "items")
@@ -176,38 +241,62 @@ namespace OmsCafe.Pages.Admin
         // in the database, so other pages that still read it keep working.
         public async Task<IActionResult> OnPostSaveItemAsync(
             Guid? Id,
-            string Name,
+            string? Name,
             Guid CategoryId,
             string? Description,
             decimal Price,
             decimal Cost,
             bool IsAvailable,
-            string AvailableFrom,
-            string AvailableUntil,
+            string? AvailableFrom,
+            string? AvailableUntil,
             IFormFile? ImageFile,
             string activeTab = "items")
         {
             try
             {
+                Name = Name?.Trim();
+                Description = string.IsNullOrWhiteSpace(Description) ? null : Description.Trim();
+
+                // ── validation ──
+                var error =
+                    CheckName(Name, "Item name", MaxItemName)
+                    ?? (CategoryId == Guid.Empty ? "Please select a category." : null)
+                    ?? (Description != null && Description.Length > MaxItemDescription
+                            ? $"Description must be {MaxItemDescription} characters or fewer." : null)
+                    ?? CheckMoney(Price, "Price", 0.01m, MaxItemPrice)
+                    ?? CheckMoney(Cost, "Cost", 0m, MaxItemPrice);
+                if (error != null) return Fail(error, activeTab);
+
+                error = CheckTimes(AvailableFrom, AvailableUntil, out var fromTime, out var untilTime);
+                if (error != null) return Fail(error, activeTab);
+
+                if (!await _db.Categories.AnyAsync(c => c.Id == CategoryId && !c.IsDeleted))
+                    return Fail("The selected category no longer exists.", activeTab);
+
+                var selfId = Id ?? Guid.Empty;
+                var lowered = Name!.ToLower();
+                if (await _db.MenuItems.AnyAsync(m =>
+                        m.Id != selfId && m.CategoryId == CategoryId && m.Name.ToLower() == lowered))
+                    return Fail($"An item named “{Name}” already exists in this category.", activeTab);
+
                 // Only set when a NEW image is uploaded; otherwise the existing image is left untouched.
                 string? imageBase64 = null;
                 string? imageMime = null;
 
                 if (ImageFile != null && ImageFile.Length > 0)
                 {
+                    if (string.IsNullOrEmpty(ImageFile.ContentType) ||
+                        !ImageFile.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                        return Fail("Please choose an image file (JPG, PNG, WEBP or GIF).", activeTab);
+
+                    if (ImageFile.Length > MaxImageBytes)
+                        return Fail("Image is too large. Maximum size is 5 MB.", activeTab);
+
                     using var ms = new MemoryStream();
                     await ImageFile.CopyToAsync(ms);
                     imageBase64 = Convert.ToBase64String(ms.ToArray());
                     imageMime = ImageFile.ContentType;
                 }
-
-                var fromTime = TimeSpan.TryParse(AvailableFrom, out var ft)
-                    ? TimeOnly.FromTimeSpan(ft)
-                    : new TimeOnly(6, 0);
-
-                var untilTime = TimeSpan.TryParse(AvailableUntil, out var ut)
-                    ? TimeOnly.FromTimeSpan(ut)
-                    : new TimeOnly(22, 0);
 
                 if (Id == null || Id == Guid.Empty)
                 {
@@ -276,22 +365,85 @@ namespace OmsCafe.Pages.Admin
             return RedirectToPage(new { activeTab });
         }
 
-        // ── POST: Save Availability Time ───────────────────────────
+        // ── POST: Save Availability Time (single item) ─────────────
         public async Task<IActionResult> OnPostSaveAvailabilityTimeAsync(
             Guid id, string? availableFrom, string? availableUntil, string activeTab = "availability")
         {
+            var error = CheckTimes(availableFrom, availableUntil, out var fromTime, out var untilTime);
+            if (error != null) return Fail(error, activeTab);
+
             var item = await _db.MenuItems.FindAsync(id);
             if (item != null)
             {
-                if (TimeSpan.TryParse(availableFrom, out var ft))
-                    item.AvailableFrom = TimeOnly.FromTimeSpan(ft);
-
-                if (TimeSpan.TryParse(availableUntil, out var ut))
-                    item.AvailableUntil = TimeOnly.FromTimeSpan(ut);
-
+                item.AvailableFrom = fromTime;
+                item.AvailableUntil = untilTime;
                 item.UpdatedAt = PhTime.Now;
                 await _db.SaveChangesAsync();
             }
+            return RedirectToPage(new { activeTab });
+        }
+
+        // ── POST: Bulk Availability (multi-select) ─────────────────
+        // mode = "time"        -> set availableFrom/availableUntil on every selected item
+        //        "available"   -> mark every selected item available
+        //        "unavailable" -> mark every selected item unavailable
+        public async Task<IActionResult> OnPostSaveBulkAvailabilityAsync(
+            List<Guid>? ids,
+            string? mode,
+            string? availableFrom,
+            string? availableUntil,
+            string activeTab = "availability")
+        {
+            // Never trust the client: re-check everything here.
+            var selected = ids?.Where(i => i != Guid.Empty).Distinct().ToList() ?? new List<Guid>();
+            if (selected.Count == 0)
+                return Fail("Select at least one item first.", activeTab);
+
+            if (mode is not ("time" or "available" or "unavailable"))
+                return Fail("Unknown action.", activeTab);
+
+            TimeOnly fromTime = default, untilTime = default;
+            if (mode == "time")
+            {
+                var timeError = CheckTimes(availableFrom, availableUntil, out fromTime, out untilTime);
+                if (timeError != null) return Fail(timeError, activeTab);
+            }
+
+            try
+            {
+                var items = await _db.MenuItems.Where(m => selected.Contains(m.Id)).ToListAsync();
+                if (items.Count == 0)
+                    return Fail("The selected items no longer exist.", activeTab);
+
+                foreach (var item in items)
+                {
+                    switch (mode)
+                    {
+                        case "time":
+                            item.AvailableFrom = fromTime;
+                            item.AvailableUntil = untilTime;
+                            break;
+                        case "available":
+                            item.IsAvailable = true;
+                            break;
+                        case "unavailable":
+                            item.IsAvailable = false;
+                            break;
+                    }
+                    item.UpdatedAt = PhTime.Now;
+                }
+
+                await _db.SaveChangesAsync();
+
+                TempData["Success"] = mode == "time"
+                    ? $"Availability time updated for {items.Count} item(s)."
+                    : $"{items.Count} item(s) marked {(mode == "available" ? "available" : "unavailable")}.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Failed to update availability: {ex.Message}";
+            }
+
             return RedirectToPage(new { activeTab });
         }
 
@@ -318,15 +470,33 @@ namespace OmsCafe.Pages.Admin
         // ── POST: Save Category (Add + Edit) ───────────────────────
         public async Task<IActionResult> OnPostSaveCategoryAsync(
             Guid? Id,
-            string CategoryName,
+            string? CategoryName,
             string? Description,
-            string Color,
+            string? Color,
             int DisplayOrder,
             bool IsActive,
             string activeTab = "categories")
         {
             try
             {
+                CategoryName = CategoryName?.Trim();
+                Description = string.IsNullOrWhiteSpace(Description) ? null : Description.Trim();
+                Color = string.IsNullOrWhiteSpace(Color) ? "#8B4513" : Color.Trim();
+
+                var error =
+                    CheckName(CategoryName, "Category name", MaxCategoryName)
+                    ?? (Description != null && Description.Length > MaxCategoryDescription
+                            ? $"Description must be {MaxCategoryDescription} characters or fewer." : null)
+                    ?? (!HexColor.IsMatch(Color) ? "Pick a valid color." : null)
+                    ?? (DisplayOrder < 0 || DisplayOrder > 999 ? "Display order must be between 0 and 999." : null);
+                if (error != null) return Fail(error, activeTab);
+
+                var selfId = Id ?? Guid.Empty;
+                var lowered = CategoryName!.ToLower();
+                if (await _db.Categories.AnyAsync(c =>
+                        !c.IsDeleted && c.Id != selfId && c.CategoryName.ToLower() == lowered))
+                    return Fail($"Category “{CategoryName}” already exists.", activeTab);
+
                 if (Id == null || Id == Guid.Empty)
                 {
                     _db.Categories.Add(new Category
@@ -383,8 +553,8 @@ namespace OmsCafe.Pages.Admin
         // ── POST: Save Customization (Add + Edit) ──────────────────
         public async Task<IActionResult> OnPostSaveCustomizationAsync(
             Guid? Id,
-            string Name,
-            string Type,
+            string? Name,
+            string? Type,
             bool IsRequired,
             int DisplayOrder,
             List<CustomizationOptionInput>? Options,
@@ -392,29 +562,70 @@ namespace OmsCafe.Pages.Admin
         {
             try
             {
+                Name = Name?.Trim();
+
+                // Clean the options first: trim labels, drop completely empty rows
+                var cleanOptions = (Options ?? new List<CustomizationOptionInput>())
+                    .Where(o => !string.IsNullOrWhiteSpace(o.OptionLabel))
+                    .Select(o => new CustomizationOptionInput
+                    {
+                        Id = o.Id,
+                        OptionLabel = o.OptionLabel.Trim(),
+                        PriceModifier = o.PriceModifier,
+                        IsDefault = o.IsDefault
+                    }).ToList();
+
+                var error =
+                    CheckName(Name, "Customization name", MaxCustomizationName)
+                    ?? (Type is "Radio" or "Checkbox" ? null : "Choose a valid customization type.")
+                    ?? (cleanOptions.Count == 0 ? "Add at least one option for this customization." : null);
+
+                if (error == null)
+                {
+                    foreach (var o in cleanOptions)
+                    {
+                        error = CheckName(o.OptionLabel, "Option label", MaxOptionLabel)
+                                ?? CheckMoney(o.PriceModifier, "Price modifier", 0m, MaxAddonPrice);
+                        if (error != null) break;
+                    }
+                }
+
+                if (error == null && cleanOptions
+                        .GroupBy(o => o.OptionLabel, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1))
+                    error = "Option labels must be unique.";
+
+                if (error == null && Type == "Radio" && cleanOptions.Count(o => o.IsDefault) > 1)
+                    error = "A single-choice (Radio) customization can only have one default option.";
+
+                if (error != null) return Fail(error, activeTab);
+
+                var selfId = Id ?? Guid.Empty;
+                var lowered = Name!.ToLower();
+                if (await _db.Customizations.AnyAsync(c => c.Id != selfId && c.Name.ToLower() == lowered))
+                    return Fail($"Customization “{Name}” already exists.", activeTab);
+
                 if (Id == null || Id == Guid.Empty)
                 {
                     var cust = new Customization
                     {
                         Id = Guid.NewGuid(),
                         Name = Name,
-                        Type = Type,
+                        Type = Type!,
                         IsRequired = IsRequired,
                         DisplayOrder = DisplayOrder,
                         CreatedAt = PhTime.Now,
                         UpdatedAt = PhTime.Now
                     };
 
-                    if (Options != null)
-                        cust.Options = Options.Select((o, i) => new CustomizationOption
-                        {
-                            Id = Guid.NewGuid(),
-                            CustomizationId = cust.Id,
-                            OptionLabel = o.OptionLabel,
-                            PriceModifier = o.PriceModifier,
-                            IsDefault = o.IsDefault,
-                            DisplayOrder = i
-                        }).ToList();
+                    cust.Options = cleanOptions.Select((o, i) => new CustomizationOption
+                    {
+                        Id = Guid.NewGuid(),
+                        CustomizationId = cust.Id,
+                        OptionLabel = o.OptionLabel,
+                        PriceModifier = o.PriceModifier,
+                        IsDefault = o.IsDefault,
+                        DisplayOrder = i
+                    }).ToList();
 
                     _db.Customizations.Add(cust);
                     await _db.SaveChangesAsync();
@@ -439,12 +650,12 @@ namespace OmsCafe.Pages.Admin
                     await _db.SaveChangesAsync();
 
                     cust.Name = Name;
-                    cust.Type = Type;
+                    cust.Type = Type!;
                     cust.IsRequired = IsRequired;
                     cust.DisplayOrder = DisplayOrder;
                     cust.UpdatedAt = PhTime.Now;
 
-                    var newOptions = Options?.Select((o, i) => new CustomizationOption
+                    var newOptions = cleanOptions.Select((o, i) => new CustomizationOption
                     {
                         Id = Guid.NewGuid(),
                         CustomizationId = cust.Id,
@@ -452,7 +663,7 @@ namespace OmsCafe.Pages.Admin
                         PriceModifier = o.PriceModifier,
                         IsDefault = o.IsDefault,
                         DisplayOrder = i
-                    }).ToList() ?? new List<CustomizationOption>();
+                    }).ToList();
 
                     _db.CustomizationOptions.AddRange(newOptions);
                     await _db.SaveChangesAsync();
@@ -492,7 +703,7 @@ namespace OmsCafe.Pages.Admin
         // ── POST: Save Addon (Add + Edit) ──────────────────────────
         public async Task<IActionResult> OnPostSaveAddonAsync(
             Guid? Id,
-            string Name,
+            string? Name,
             string? Category,
             decimal Price,
             bool IsActive,
@@ -500,6 +711,20 @@ namespace OmsCafe.Pages.Admin
         {
             try
             {
+                Name = Name?.Trim();
+                Category = string.IsNullOrWhiteSpace(Category) ? null : Category.Trim();
+
+                var error =
+                    CheckName(Name, "Add-on name", MaxAddonName)
+                    ?? CheckName(Category, "Add-on category", MaxAddonCategory, required: false)
+                    ?? CheckMoney(Price, "Price", 0m, MaxAddonPrice);
+                if (error != null) return Fail(error, activeTab);
+
+                var selfId = Id ?? Guid.Empty;
+                var lowered = Name!.ToLower();
+                if (await _db.Addons.AnyAsync(a => a.Id != selfId && a.Name.ToLower() == lowered))
+                    return Fail($"Add-on “{Name}” already exists.", activeTab);
+
                 if (Id == null || Id == Guid.Empty)
                 {
                     _db.Addons.Add(new Addon
@@ -560,6 +785,11 @@ namespace OmsCafe.Pages.Admin
         public async Task<IActionResult> OnPostSavePricingAsync(
             Guid Id, decimal Price, decimal Cost, string activeTab = "pricing")
         {
+            var error =
+                CheckMoney(Price, "Selling price", 0.01m, MaxItemPrice)
+                ?? CheckMoney(Cost, "Cost", 0m, MaxItemPrice);
+            if (error != null) return Fail(error, activeTab);
+
             var item = await _db.MenuItems.FindAsync(Id);
             if (item != null)
             {

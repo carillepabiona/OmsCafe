@@ -339,12 +339,78 @@
         <h2>Availability Schedule</h2>
     </div>
 
-    <div class="avail-grid">
+    <!-- Filters + select all -->
+    <div class="section-bar avail-toolbar">
+        <div class="search-wrap">
+            <i class="ti ti-search search-ico"></i>
+            <input class="search-input" type="text" id="availSearch" placeholder="Search items…"
+                   aria-label="Search items" oninput="filterAvail()" />
+        </div>
+        <select class="filter-select" id="availCatFilter" aria-label="Filter by category" onchange="filterAvail()">
+            <option value="">All Categories</option>
+            @foreach (var c in Model.Categories)
+            {
+                <option value="@c.CategoryName">@c.CategoryName</option>
+            }
+        </select>
+        <label class="select-all">
+            <input type="checkbox" id="availSelectAll" onchange="toggleSelectAllAvail(this)" />
+            <span>Select all shown</span>
+        </label>
+        <span class="avail-count" id="availCount" aria-live="polite"></span>
+    </div>
+
+    <!-- Bulk action bar (appears when 1+ items are selected) -->
+    <form method="post" id="bulkAvailForm" class="bulk-bar" asp-page-handler="SaveBulkAvailability"
+          data-validate novalidate hidden>
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="activeTab" value="availability" />
+        <input type="hidden" name="mode" id="bulkMode" />
+        <div id="bulkIds"></div>
+
+        <div class="bulk-count"><strong id="bulkCount">0</strong> selected</div>
+
+        <div class="bulk-times">
+            <div class="form-group">
+                <label class="form-label" for="bulkFrom">Available from</label>
+                <input type="time" class="form-control-cafe" name="availableFrom" id="bulkFrom"
+                       value="06:00" required data-label="Start time" />
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="bulkUntil">Available until</label>
+                <input type="time" class="form-control-cafe" name="availableUntil" id="bulkUntil"
+                       value="22:00" required data-label="End time" />
+            </div>
+        </div>
+
+        <div class="bulk-actions">
+            <button type="button" class="btn-primary-cafe btn-sm" onclick="submitBulk('time')">
+                <i class="ti ti-clock"></i> Apply time
+            </button>
+            <button type="button" class="btn-ghost-cafe btn-sm" onclick="submitBulk('available')">
+                <i class="ti ti-circle-check"></i> Mark available
+            </button>
+            <button type="button" class="btn-ghost-cafe btn-sm" onclick="submitBulk('unavailable')">
+                <i class="ti ti-circle-off"></i> Mark unavailable
+            </button>
+            <button type="button" class="btn-ghost-cafe btn-sm" onclick="clearAvailSelection()">Clear</button>
+        </div>
+    </form>
+
+    <div class="avail-grid" id="availGrid">
         @foreach (var item in Model.MenuItems)
         {
-            <div class="avail-card">
+            <div class="avail-card" data-name="@item.Name.ToLower()" data-cat="@item.CategoryName">
                 <div class="avail-header">
-                    <span class="avail-name">@item.Name</span>
+                    <label class="avail-check" title="Select @item.Name">
+                        <input type="checkbox" class="avail-select" value="@item.Id"
+                               aria-label="Select @item.Name" onchange="onAvailSelect()" />
+                        <span class="avail-check-box"></span>
+                    </label>
+                    <div class="avail-title">
+                        <span class="avail-name">@item.Name</span>
+                        <span class="avail-cat">@item.CategoryName</span>
+                    </div>
                     <form method="post" asp-page-handler="ToggleAvailability">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="id" value="@item.Id" />
@@ -385,6 +451,11 @@
                 <p>No items to schedule yet.</p>
             </div>
         }
+
+        <div class="empty-state" id="availNoMatch" style="display:none">
+            <i class="ti ti-search-off"></i>
+            <p>No items match your filter.</p>
+        </div>
     </div>
 </div>
 
@@ -885,7 +956,7 @@
 <script>
     window.MM_EXISTING = @Html.Raw(JsonSerializer.Serialize(existing, camel));
 </script>
-<script src="~/js/menu_validation.js" asp-append-version="true"></script>
+<script src="~/js/menu-validation.js" asp-append-version="true"></script>
 <script>
     const SAVE_ITEM_URL          = '@Url.Page("MenuManagement", "SaveItem")';
     const SAVE_CATEGORY_URL      = '@Url.Page("MenuManagement", "SaveCategory")';
@@ -1101,6 +1172,19 @@
         showModal('customizationModalBackdrop', 'custName');
     }
 
+    // ASP.NET list binding stops at the first gap (Options[0], Options[2] -> Options[2] is lost),
+    // so after removing a row we renumber every row to 0..n-1.
+    function removeCustOption(btn) {
+        btn.closest('.opt-edit-row').remove();
+        const rows = document.querySelectorAll('#custOptionsContainer .opt-edit-row');
+        rows.forEach((row, i) => {
+            row.querySelectorAll('[name^="Options["]').forEach(el => {
+                el.name = el.name.replace(/^Options\[\d+\]/, 'Options[' + i + ']');
+            });
+        });
+        optionIndex = rows.length;
+    }
+
     function addCustOption() { addCustOptionRow(null); }
 
     function addCustOptionRow(opt) {
@@ -1143,7 +1227,7 @@
             </label>
 
             <button type="button" class="opt-remove" title="Remove option" aria-label="Remove option"
-                    onclick="this.closest('.opt-edit-row').remove()">×</button>`;
+                    onclick="removeCustOption(this)">×</button>`;
 
         container.appendChild(div);
 
@@ -1199,6 +1283,102 @@
         document.getElementById('profitPreview').textContent = '₱' + (price - cost).toFixed(2);
         document.getElementById('marginCard').classList.toggle('is-loss', price > 0 && cost > price);
     }
+
+    // ── Availability: filter, multi-select, bulk apply ─────────────────────────
+    const availCards = () => Array.from(document.querySelectorAll('#availGrid .avail-card'));
+    const availShown = () => availCards().filter(c => c.style.display !== 'none');
+    const availChecked = () => Array.from(document.querySelectorAll('#availGrid .avail-select:checked'));
+
+    function filterAvail() {
+        const q   = document.getElementById('availSearch').value.trim().toLowerCase();
+        const cat = document.getElementById('availCatFilter').value.toLowerCase();
+
+        try { sessionStorage.setItem('mmAvailCat', cat); } catch (_) { /* storage unavailable */ }
+
+        availCards().forEach(card => {
+            const show = (!q || (card.dataset.name || '').includes(q)) &&
+                         (!cat || (card.dataset.cat || '').toLowerCase() === cat);
+            card.style.display = show ? '' : 'none';
+
+            // never keep a hidden item selected, otherwise bulk apply hits items you can't see
+            if (!show) {
+                const cb = card.querySelector('.avail-select');
+                if (cb && cb.checked) cb.checked = false;
+            }
+        });
+
+        const none = document.getElementById('availNoMatch');
+        if (none) none.style.display = (availCards().length && !availShown().length) ? 'flex' : 'none';
+        onAvailSelect();
+    }
+
+    function onAvailSelect() {
+        const selected = availChecked();
+        const shown    = availShown();
+
+        availCards().forEach(card =>
+            card.classList.toggle('is-selected', !!card.querySelector('.avail-select:checked')));
+
+        const master = document.getElementById('availSelectAll');
+        const shownSelected = shown.filter(c => c.querySelector('.avail-select:checked')).length;
+        master.checked       = shown.length > 0 && shownSelected === shown.length;
+        master.indeterminate = shownSelected > 0 && shownSelected < shown.length;
+
+        document.getElementById('availCount').textContent =
+            shown.length + ' of ' + availCards().length + ' items';
+
+        document.getElementById('bulkCount').textContent = selected.length;
+        document.getElementById('bulkAvailForm').hidden  = selected.length === 0;
+    }
+
+    function toggleSelectAllAvail(master) {
+        availShown().forEach(card => {
+            const cb = card.querySelector('.avail-select');
+            if (cb) cb.checked = master.checked;
+        });
+        onAvailSelect();
+    }
+
+    function clearAvailSelection() {
+        availChecked().forEach(cb => cb.checked = false);
+        MM.reset(document.getElementById('bulkAvailForm'));
+        onAvailSelect();
+    }
+
+    function submitBulk(mode) {
+        const form = document.getElementById('bulkAvailForm');
+        const ids  = availChecked().map(cb => cb.value);
+        if (!ids.length) return;
+
+        // "time" needs valid From/Until; "available"/"unavailable" ignore the time fields
+        if (mode === 'time' && !MM.validateForm(form)) return;
+
+        const box = document.getElementById('bulkIds');
+        box.innerHTML = '';
+        ids.forEach(id => {
+            const i = document.createElement('input');
+            i.type = 'hidden';
+            i.name = 'ids';
+            i.value = id;
+            box.appendChild(i);
+        });
+        document.getElementById('bulkMode').value = mode;
+
+        form.querySelectorAll('button').forEach(b => b.disabled = true);
+        form.submit();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        try {
+            const saved = sessionStorage.getItem('mmAvailCat');
+            const sel = document.getElementById('availCatFilter');
+            if (saved && sel) {
+                const opt = Array.from(sel.options).find(o => o.value.toLowerCase() === saved);
+                if (opt) sel.value = opt.value;
+            }
+        } catch (_) { /* storage unavailable */ }
+        filterAvail();
+    });
 
     // ── Utility ────────────────────────────────────────────────────────────────
     function escHtml(str) {

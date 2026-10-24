@@ -2,7 +2,7 @@
 @model OmsCafe.Pages.Admin.ReportsModel
 @{
     ViewData["Title"] = "Sales Reports";
-    ViewData["Subtitle"] = "Daily, monthly and yearly sales overview";
+    ViewData["Subtitle"] = "Daily, weekly, monthly and yearly sales overview";
 }
 
 <!-- Font Awesome (remove this line if your _Layout already loads it) -->
@@ -13,6 +13,7 @@
 <div class="rpt-filter-bar">
     <div class="rpt-tabs">
         <button class="rpt-tab active" onclick="switchPeriod('daily', this)">Daily</button>
+        <button class="rpt-tab" onclick="switchPeriod('weekly', this)">Weekly</button>
         <button class="rpt-tab" onclick="switchPeriod('monthly', this)">Monthly</button>
         <button class="rpt-tab" onclick="switchPeriod('yearly', this)">Yearly</button>
     </div>
@@ -22,6 +23,21 @@
             <label class="rpt-filter-label">Date</label>
             <input type="date" class="rpt-input" id="daily-date" value="@PhTime.Today.ToString("yyyy-MM-dd")" onchange="loadReport()" />
         </div>
+
+        <div class="rpt-filter-group" id="filter-weekly" style="display:none">
+            <label class="rpt-filter-label">Week of</label>
+            <div class="rpt-week-nav">
+                <button type="button" class="rpt-week-btn" title="Previous week" onclick="shiftWeek(-1)">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <input type="date" class="rpt-input" id="weekly-date" value="@PhTime.Today.ToString("yyyy-MM-dd")" onchange="loadReport()" />
+                <button type="button" class="rpt-week-btn" title="Next week" onclick="shiftWeek(1)">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+            <span class="rpt-week-range" id="week-range"></span>
+        </div>
+
         <div class="rpt-filter-group" id="filter-monthly" style="display:none">
             <label class="rpt-filter-label">Month</label>
             <input type="month" class="rpt-input" id="monthly-month" value="@PhTime.Today.ToString("yyyy-MM")" onchange="loadReport()" />
@@ -167,16 +183,52 @@
     let reportData    = [];
     let lastData      = {};
     let trendMetric   = 'sales';
+    let loadToken     = 0;   // ignores stale responses when the user clicks quickly
 
     // Statuses left out of the charts (so cancelled orders don't inflate trends).
     // Set to [] if your API totals include cancelled orders and you want them to match.
     const CHART_EXCLUDE = ['cancelled'];
     const PALETTE = ['#ea580c', '#2563eb', '#16a34a', '#7c3aed', '#ca8a04', '#0891b2'];
+    const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];   // weeks run Monday–Sunday
     const charts = {};
 
     Chart.defaults.font.size = 12;
     Chart.defaults.color = '#6b7280';
     Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+
+    // ═════════════════════════ WEEK HELPERS ═══════════════════════
+    const pad = n => String(n).padStart(2, '0');
+    const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+
+    function parseYmd(s) {
+        const [y, m, d] = s.split('-').map(Number);
+        return new Date(y, m - 1, d);
+    }
+
+    // Monday → Sunday range that contains the picked date
+    function weekInfo() {
+        const picked = parseYmd(document.getElementById('weekly-date').value || ymd(new Date()));
+        const offset = (picked.getDay() + 6) % 7;                       // Mon = 0 … Sun = 6
+        const start  = new Date(picked.getFullYear(), picked.getMonth(), picked.getDate() - offset);
+        const days   = Array.from({ length: 7 }, (_, i) =>
+            new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+        return { start, end: days[6], days, startStr: ymd(start), endStr: ymd(days[6]) };
+    }
+
+    function weekRangeText() {
+        const w = weekInfo();
+        const a = w.start.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+        const b = w.end.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+        return a + ' – ' + b;
+    }
+
+    function shiftWeek(dir) {
+        const input = document.getElementById('weekly-date');
+        const d = parseYmd(input.value);
+        d.setDate(d.getDate() + dir * 7);
+        input.value = ymd(d);
+        loadReport();
+    }
 
     // ── Period switch ──────────────────────────────────────────────
     function switchPeriod(period, btn) {
@@ -184,26 +236,83 @@
         document.querySelectorAll('.rpt-tab').forEach(t => t.classList.remove('active'));
         btn.classList.add('active');
 
-        ['daily','monthly','yearly'].forEach(p => {
+        ['daily', 'weekly', 'monthly', 'yearly'].forEach(p => {
             document.getElementById('filter-' + p).style.display = p === period ? 'flex' : 'none';
         });
 
-        const labels = { daily: 'Today', monthly: 'This Month', yearly: 'This Year' };
+        const labels = { daily: 'Today', weekly: 'This Week', monthly: 'This Month', yearly: 'This Year' };
         document.getElementById('period-label').textContent = labels[period];
         loadReport();
     }
 
+    // ── Fetch helpers ──────────────────────────────────────────────
+    async function fetchJson(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status + ' for ' + url);
+        return res.json();
+    }
+
+    // Weekly = 7 daily reports fetched in parallel, then merged into one
+    async function fetchWeekly() {
+        const w = weekInfo();
+        const results = await Promise.all(
+            w.days.map(d => fetchJson('/api/reports?period=daily&date=' + ymd(d)))
+        );
+
+        const orders = results.flatMap(r => r.orders || [])
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        const totalOrders    = results.reduce((s, r) => s + (Number(r.totalOrders) || 0), 0);
+        const totalSales     = results.reduce((s, r) => s + (Number(r.totalSales) || 0), 0);
+        const totalItemsSold = results.reduce((s, r) => s + (Number(r.totalItemsSold) || 0), 0);
+
+        const itemMap = {};
+        results.forEach(r => (r.topItems || []).forEach(i => {
+            const e = itemMap[i.name] || (itemMap[i.name] = { name: i.name, qtySold: 0, revenue: 0 });
+            e.qtySold += Number(i.qtySold) || 0;
+            e.revenue += Number(i.revenue) || 0;
+        }));
+
+        const payMap = {};
+        results.forEach(r => (r.paymentBreakdown || []).forEach(p => {
+            const e = payMap[p.method] || (payMap[p.method] = { method: p.method, amount: 0, count: 0 });
+            e.amount += Number(p.amount) || 0;
+            e.count  += Number(p.count) || 0;
+        }));
+
+        return {
+            orders,
+            totalOrders,
+            totalSales,
+            totalItemsSold,
+            avgOrderValue: totalOrders ? totalSales / totalOrders : 0,
+            topItems: Object.values(itemMap).sort((a, b) => b.qtySold - a.qtySold),
+            paymentBreakdown: Object.values(payMap).sort((a, b) => b.amount - a.amount)
+        };
+    }
+
     // ── Load report via API ────────────────────────────────────────
     async function loadReport() {
-        let url = '/api/reports?period=' + currentPeriod;
-        if (currentPeriod === 'daily')        url += '&date='  + document.getElementById('daily-date').value;
-        else if (currentPeriod === 'monthly') url += '&month=' + document.getElementById('monthly-month').value;
-        else                                  url += '&year='  + document.getElementById('yearly-year').value;
-
+        const token = ++loadToken;
         setLoading(true);
+
         try {
-            const res  = await fetch(url);
-            const data = await res.json();
+            let data;
+            if (currentPeriod === 'weekly') {
+                const range = weekRangeText();
+                document.getElementById('week-range').textContent = range;
+                document.getElementById('period-label').textContent = range;
+                data = await fetchWeekly();
+            } else {
+                let url = '/api/reports?period=' + currentPeriod;
+                if (currentPeriod === 'daily')        url += '&date='  + document.getElementById('daily-date').value;
+                else if (currentPeriod === 'monthly') url += '&month=' + document.getElementById('monthly-month').value;
+                else                                  url += '&year='  + document.getElementById('yearly-year').value;
+                data = await fetchJson(url);
+            }
+
+            if (token !== loadToken) return;   // a newer request replaced this one
+
             lastData   = data;
             reportData = data.orders || [];
             renderSummary(data);
@@ -213,8 +322,7 @@
             renderCharts();
         } catch (e) {
             console.error('Report load error:', e);
-        } finally {
-            setLoading(false);
+            if (token === loadToken) showLoadError();
         }
     }
 
@@ -251,6 +359,12 @@
             labels = Array.from({ length: 24 }, (_, h) => hourLabel(h));
             keyOf  = d => d.getHours();
             title  = 'by hour';
+        } else if (currentPeriod === 'weekly') {
+            const w = weekInfo();
+            labels = w.days.map(d => DOW[(d.getDay() + 6) % 7] + ' ' + d.getDate());
+            keyOf  = d => Math.round(
+                (new Date(d.getFullYear(), d.getMonth(), d.getDate()) - w.start) / 86400000);
+            title  = 'by day';
         } else if (currentPeriod === 'monthly') {
             const [y, m] = document.getElementById('monthly-month').value.split('-').map(Number);
             const days = new Date(y, m, 0).getDate();
@@ -327,7 +441,8 @@
         const busy = b.orders.indexOf(Math.max(...b.orders));
         const active = b.orders.filter(n => n > 0).length;
         const totalSales = b.sales.reduce((a, c) => a + c, 0);
-        const unit = currentPeriod === 'daily' ? 'hour' : currentPeriod === 'monthly' ? 'day' : 'month';
+        const unit = currentPeriod === 'daily' ? 'hour'
+                   : (currentPeriod === 'weekly' || currentPeriod === 'monthly') ? 'day' : 'month';
         el.innerHTML = `
             <span><i class="fa-solid fa-trophy"></i>Best ${unit}: <strong>${b.labels[peak]}</strong> (${fmt(b.sales[peak])})</span>
             <span><i class="fa-solid fa-fire"></i>Busiest ${unit}: <strong>${b.labels[busy]}</strong> (${b.orders[busy]} orders)</span>
@@ -477,9 +592,10 @@
         const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
         const rows   = [];
 
-        const periodLabels = { daily: 'Daily', monthly: 'Monthly', yearly: 'Yearly' };
+        const periodLabels = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
         let periodValue = '';
         if (currentPeriod === 'daily')   periodValue = document.getElementById('daily-date').value;
+        if (currentPeriod === 'weekly')  { const w = weekInfo(); periodValue = w.startStr + ' to ' + w.endStr; }
         if (currentPeriod === 'monthly') periodValue = document.getElementById('monthly-month').value;
         if (currentPeriod === 'yearly')  periodValue = document.getElementById('yearly-year').value;
 
@@ -537,7 +653,7 @@
         const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
         const a    = Object.assign(document.createElement('a'), {
             href: URL.createObjectURL(blob),
-            download: `sales-report-${currentPeriod}-${periodValue}.csv`
+            download: `sales-report-${currentPeriod}-${periodValue.replace(/\s+/g, '_')}.csv`
         });
         document.body.appendChild(a);
         a.click();
@@ -553,6 +669,11 @@
         document.getElementById('orders-body').innerHTML    = '<tr><td colspan="9" class="rpt-empty">Loading…</td></tr>';
         document.getElementById('top-items-body').innerHTML = '<tr><td colspan="4" class="rpt-empty">Loading…</td></tr>';
         ['stat-orders','stat-sales','stat-avg','stat-items'].forEach(id => document.getElementById(id).textContent = '—');
+    }
+
+    function showLoadError() {
+        document.getElementById('orders-body').innerHTML    = '<tr><td colspan="9" class="rpt-empty">Could not load the report. Please try again.</td></tr>';
+        document.getElementById('top-items-body').innerHTML = '<tr><td colspan="4" class="rpt-empty">Could not load the report.</td></tr>';
     }
 
     // ── Init ───────────────────────────────────────────────────────
